@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sandbox": "ampx sandbox --profile shop-dev"
   },
   "dependencies": {
     "aws-amplify": "^6.22.1",
