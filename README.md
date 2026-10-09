@@ -1,4 +1,6 @@
-# Next.js starter
+# shop
+
+Source code for the GiftsByArtisans website.
 
 A minimal Next.js app with TypeScript, App Router, CSS Modules, and ESLint.
 
