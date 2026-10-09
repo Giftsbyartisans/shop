@@ -1,0 +1,8 @@
+.main { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.card { width: 100%; max-width: 640px; padding: clamp(24px, 6vw, 56px); background: white; border: 1px solid #e2e5eb; border-radius: 20px; }
+.label { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: #546179; }
+.card h1 { margin: 20px 0; font-size: clamp(32px, 6vw, 48px); letter-spacing: -2px; }
+.card p { line-height: 1.7; }
+.card a { display: inline-block; margin-top: 24px; padding: 14px 20px; border-radius: 8px; background: #172033; color: white; text-decoration: none; }
+.card a:hover { background: #344465; }
+.card a:focus-visible { outline: 3px solid #5d82ed; outline-offset: 4px; }
