@@ -1,10 +1,15 @@
-import { defineStorage } from '@aws-amplify/backend';
+import { defineStorage } from "@aws-amplify/backend";
 
 export const storage = defineStorage({
-  name: 'shopFiles',
+  name: "shopFiles",
   access: (allow) => ({
-    'uploads/{entity_id}/*': [
-      allow.entity('identity').to(['read', 'write', 'delete']),
+    "media/*": [
+      allow.guest.to(["read"]),
+      allow.authenticated.to(["read"]),
+      allow.groups(["Admins"]).to(["read", "write", "delete"]),
+    ],
+    "uploads/{entity_id}/*": [
+      allow.entity("identity").to(["read", "write", "delete"]),
     ],
   }),
 });
