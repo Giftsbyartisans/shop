@@ -9,30 +9,42 @@ import { SocialLinks } from "./shop-frame";
 import { formatPrice, listingPrice, type Listing } from "@/lib/catalog";
 import { listListings, submitInquiry, loadShopContent } from "@/lib/backend";
 
-function Card({ item, content }: { item: Listing; content: ShopContent }) {
+function Card({ item, content, showcase = false }: { item: Listing; content: ShopContent; showcase?: boolean }) {
+  const photos = Array.from(new Set([item.image, ...(item.images ?? [])].filter(Boolean)));
+  const [selected, setSelected] = useState<string | null>(null);
+  const photo = selected && photos.includes(selected) ? selected : photos[0];
+  const price = listingPrice(item, content.saleEnabled, content.salePercent);
+  const discounted = price < item.price;
+  const percentOff = discounted && item.price > 0 ? Math.round((1 - price / item.price) * 100) : 0;
   return (
-    <article className="listing-card">
+    <article className={`listing-card${showcase ? " homepage-listing" : ""}`}>
       <Link className="listing-media demo-media" href={"/listing/" + item.id}>
-        <ShopImage src={item.image} alt={item.title} loading="lazy" />
+        <ShopImage src={showcase ? photo : item.image} alt={item.title} loading="lazy"
+          sizes={showcase ? "(max-width: 600px) 75vw, (max-width: 850px) 46vw, (max-width: 1100px) 30vw, 19vw" : undefined} />
       </Link>
-      <h3 className="listing-name">
-        <Link href={"/listing/" + item.id}>{item.title}</Link>
-      </h3>
+      {showcase && photos.length > 1 && (
+        <div className="homepage-thumbnails" role="group" aria-label={`Photos of ${item.title}`}>
+          {photos.map((image, index) => (
+            <button key={image} type="button" aria-label={`Show photo ${index + 1} of ${item.title}`}
+              aria-pressed={photo === image} onClick={() => setSelected(image)}>
+              <ShopImage src={image} alt="" sizes="52px" />
+            </button>
+          ))}
+        </div>
+      )}
+      <h3 className="listing-name"><Link href={"/listing/" + item.id}>{item.title}</Link></h3>
       <div className="listing-prices">
-        <strong>
-          {formatPrice(
-            listingPrice(item, content.saleEnabled, content.salePercent),
-          )}
-        </strong>
-        {content.saleEnabled && <del>{formatPrice(item.price)}</del>}
+        <strong className={discounted ? "discount-price" : undefined}>{formatPrice(price)}</strong>
+        {discounted && <span className="listing-was"><del>{formatPrice(item.price)}</del> ({percentOff}% off)</span>}
       </div>
-      <span className="muted">{item.category}</span>
-      <div className="listing-platforms">
-        <Link href={"/listing/" + item.id}>Discover this gift →</Link>
-      </div>
+      {!showcase && <>
+        <span className="muted">{item.category}</span>
+        <div className="listing-platforms"><Link href={"/listing/" + item.id}>Discover this gift →</Link></div>
+      </>}
     </article>
   );
 }
+
 function Carousel({
   children,
   label,
@@ -41,6 +53,21 @@ function Carousel({
   label: string;
 }) {
   const track = useRef<HTMLDivElement>(null);
+  const [canPrevious, setCanPrevious] = useState(false);
+  const [canNext, setCanNext] = useState(false);
+  useEffect(() => {
+    const element = track.current;
+    if (!element) return;
+    const update = () => {
+      setCanPrevious(element.scrollLeft > 2);
+      setCanNext(element.scrollLeft + element.clientWidth < element.scrollWidth - 2);
+    };
+    update();
+    element.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => { element.removeEventListener("scroll", update); observer.disconnect(); };
+  }, [children]);
   return (
     <div className="demo-carousel" role="region" aria-label={label}>
       <div className="demo-track" ref={track}>
@@ -48,6 +75,9 @@ function Carousel({
       </div>
       <div className="demo-controls">
         <button
+          className="homepage-carousel-arrow previous"
+          type="button"
+          disabled={!canPrevious}
           aria-label={"Previous " + label}
           onClick={() =>
             track.current?.scrollBy({
@@ -56,9 +86,12 @@ function Carousel({
             })
           }
         >
-          ←
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
         </button>
         <button
+          className="homepage-carousel-arrow next"
+          type="button"
+          disabled={!canNext}
           aria-label={"Next " + label}
           onClick={() =>
             track.current?.scrollBy({
@@ -67,7 +100,7 @@ function Carousel({
             })
           }
         >
-          →
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
         </button>
       </div>
     </div>
@@ -120,7 +153,7 @@ export default function Storefront({
     let active = true;
     let icon: HTMLLinkElement | null = null;
     const apply = () =>
-      imageUrl(content.favicon)
+      imageUrl(content.favicon, 320)
         .then((url) => {
           if (!active || !url) return;
           if (!icon) {
@@ -160,7 +193,7 @@ export default function Storefront({
     <>
       <ShopHeader content={content} />
       {page === "home" ? (
-        <main className="shop">
+        <main className="shop shop-home">
           <StoreBanner content={content} />
           <section id="categories" className="collection">
             <p className="eyebrow">SOMETHING FOR EVERY OCCASION</p>
@@ -172,7 +205,7 @@ export default function Storefront({
                   href={"/collection?category=" + encodeURIComponent(c.name)}
                   key={c.id}
                 >
-                  <ShopImage src={c.image} alt={c.name} />
+                  <ShopImage src={c.image} alt={c.name} sizes="(max-width: 600px) 75vw, (max-width: 850px) 46vw, (max-width: 1100px) 30vw, 19vw" />
                   <h3>{c.name}</h3>
                 </Link>
               ))}
@@ -190,7 +223,7 @@ export default function Storefront({
               {visible
                 .filter((i) => content.bestSellerIds.includes(i.id))
                 .map((i) => (
-                  <Card content={content} item={i} key={i.id} />
+                  <Card content={content} item={i} key={i.id} showcase />
                 ))}
             </Carousel>
           </section>
@@ -491,29 +524,19 @@ function StoreBanner({ content }: { content: ShopContent }) {
   const active = index % banners.length;
   const selected = banners[active];
   return (
-    <section
-      className={`intro banner demo-hero${hasText ? "" : " demo-hero-image-only"}`}
-      role={multiple ? "region" : undefined}
-      aria-roledescription={multiple ? "carousel" : undefined}
-      aria-label={multiple ? "Shop highlights" : undefined}
-    >
+    <section className="store-hero">
       <div
-        className="hero-slide"
-        role={multiple ? "group" : undefined}
-        aria-roledescription={multiple ? "slide" : undefined}
-        aria-label={multiple ? `${active + 1} of ${banners.length}` : undefined}
+        className="store-hero-carousel"
+        role={multiple ? "region" : undefined}
+        aria-roledescription={multiple ? "carousel" : undefined}
+        aria-label="Shop highlights"
       >
-        {hasText && (
-          <div className="hero-copy">
-            <p className="eyebrow">THE ART OF GIVING</p>
-            {content.bannerTitle.trim() && <h1>{content.bannerTitle}</h1>}
-            {content.bannerText.trim() && <p>{content.bannerText}</p>}
-            <Link className="primary banner-button" href="/collection">
-              Explore the collection →
-            </Link>
-          </div>
-        )}
-        <div className="store-banner">
+        <div
+          className="store-hero-slide"
+          role={multiple ? "group" : undefined}
+          aria-roledescription={multiple ? "slide" : undefined}
+          aria-label={multiple ? `${active + 1} of ${banners.length}` : undefined}
+        >
           <ShopImage
             key={selected.image}
             src={selected.image}
@@ -521,43 +544,48 @@ function StoreBanner({ content }: { content: ShopContent }) {
             optimized
             loading="eager"
             fetchPriority="high"
-            sizes={
-              hasText
-                ? "(max-width: 600px) 90vw, (max-width: 1440px) 44vw, 640px"
-                : "(max-width: 1440px) 88vw, 1280px"
-            }
+            sizes="100vw"
           />
         </div>
-      </div>
-      {multiple && (
-        <div className="banner-controls hero-carousel-controls">
-          <button
-            aria-label="Previous banner"
-            onClick={() =>
-              setIndex((active + banners.length - 1) % banners.length)
-            }
-          >
-            ←
-          </button>
-          {banners.map((banner, i) => (
+        {multiple && (
+          <>
             <button
-              key={banner.id}
-              aria-label={`Show banner ${i + 1}`}
-              aria-pressed={active === i}
-              onClick={() => setIndex(i)}
+              className="store-hero-arrow previous"
+              type="button"
+              aria-label="Previous banner"
+              onClick={() => setIndex((active + banners.length - 1) % banners.length)}
             >
-              {i + 1}
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
             </button>
-          ))}
-          <button
-            aria-label="Next banner"
-            onClick={() => setIndex((active + 1) % banners.length)}
-          >
-            →
-          </button>
-          <span className="sr-only" aria-live="polite">
-            Banner {active + 1} of {banners.length}
-          </span>
+            <div className="store-hero-dots">
+              {banners.map((banner, i) => (
+                <button
+                  key={banner.id}
+                  type="button"
+                  aria-label={`Show banner ${i + 1}`}
+                  aria-pressed={active === i}
+                  onClick={() => setIndex(i)}
+                />
+              ))}
+            </div>
+            <button
+              className="store-hero-arrow next"
+              type="button"
+              aria-label="Next banner"
+              onClick={() => setIndex((active + 1) % banners.length)}
+            >
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
+            </button>
+            <span className="sr-only" aria-live="polite">Banner {active + 1} of {banners.length}</span>
+          </>
+        )}
+      </div>
+      {hasText && (
+        <div className="store-hero-copy">
+          <p className="eyebrow">THE ART OF GIVING</p>
+          {content.bannerTitle.trim() && <h1>{content.bannerTitle}</h1>}
+          {content.bannerText.trim() && <p>{content.bannerText}</p>}
+          <Link className="primary banner-button" href="/collection">Explore the collection →</Link>
         </div>
       )}
     </section>

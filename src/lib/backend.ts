@@ -2,6 +2,8 @@ import { defaultContent, validateContent, type ShopContent } from "./content";
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { fetchAuthSession } from "aws-amplify/auth";
+import { list, remove } from "aws-amplify/storage";
+import { cleanupListingMedia } from "./listing-media-cleanup";
 import outputs from "../../amplify_outputs.json";
 import type { Schema } from "../../amplify/data/resource";
 import {
@@ -108,11 +110,36 @@ export async function saveListing(item: Listing) {
   }
 }
 export async function deleteListing(id: string) {
-  const result = await client.models.Listing.get({ id }, adminAuth);
-  check(result);
-  if (result.data) check(await client.models.Listing.delete({ id }, adminAuth));
-  check(await client.models.DraftListing.delete({ id }, adminAuth));
+  const results = await Promise.all([
+    client.models.Listing.get({ id }, adminAuth),
+    client.models.DraftListing.get({ id }, adminAuth),
+    listListings(true),
+    listListings(false),
+    loadShopContent(),
+  ]);
+  const [publicRecord, draftRecord, drafts, published, content] = results;
+  check(publicRecord);
+  check(draftRecord);
+  if (!publicRecord.data && !draftRecord.data) return;
+  try {
+    await cleanupListingMedia(
+      [publicRecord.data, draftRecord.data],
+      [drafts.filter(item => item.id !== id), published.filter(item => item.id !== id), content],
+      {
+        list: async prefix => {
+          const result = await list({ path: prefix, options: { listAll: true } });
+          return result.items.map(item => item.path);
+        },
+        remove: async path => { await remove({ path }); },
+      },
+    );
+  } catch {
+    throw new Error("Media cleanup failed. The listing records were kept so you can retry deletion. Some files may already have been removed.");
+  }
+  if (publicRecord.data) check(await client.models.Listing.delete({ id }, adminAuth));
+  if (draftRecord.data) check(await client.models.DraftListing.delete({ id }, adminAuth));
 }
+
 export type Inquiry = {
   id: string;
   kind: string | null;

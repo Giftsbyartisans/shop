@@ -7,6 +7,8 @@ export default function Brand({ content }: { content: ShopContent }) {
       {content.logo ? (
         <ShopImage
           className="brand-logo"
+          sizes="200px"
+          loading="eager"
           src={content.logo}
           alt={content.logoAlt || "GiftsByArtisans"}
         />

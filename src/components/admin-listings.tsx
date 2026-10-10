@@ -344,7 +344,7 @@ export default function AdminListings({
                   aria-label={`Edit ${item.title}`}
                 >
                   <div className="manager-product-image">
-                    <ShopImage src={item.image} alt={item.title} />
+                    <ShopImage src={item.image} alt={item.title} sizes="80px" />
                   </div>
                   <div className="manager-product-info">
                     <h2 title={item.title}>{item.title}</h2>

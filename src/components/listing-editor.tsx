@@ -238,7 +238,7 @@ export default function ListingEditor({
                 className="listing-edit-media-tile"
                 key={`${image}-${index}`}
               >
-                <ShopImage src={image} alt={`Listing photo ${index + 1}`} />
+                <ShopImage src={image} alt={`Listing photo ${index + 1}`} sizes="160px" />
                 {index === 0 && (
                   <span className="listing-edit-primary">Primary</span>
                 )}

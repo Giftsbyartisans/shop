@@ -2,12 +2,12 @@
 import { useEffect, useState, type ImgHTMLAttributes } from "react";
 import Image from "next/image";
 import { getUrl, uploadData, remove } from "aws-amplify/storage";
-import { cdnImageUrl, imageSrcSet, IMAGE_WIDTHS } from "@/lib/image-delivery";
+import { cdnImageUrl, cdnImageVariantUrl, imageSrcSet, IMAGE_WIDTHS } from "@/lib/image-delivery";
 
 const signedUrls = new Map<string, { url: string; expiresAt: number }>();
 const pendingUrls = new Map<string, Promise<string>>();
-export async function imageUrl(value: string): Promise<string> {
-  const cdn = cdnImageUrl(value);
+export async function imageUrl(value: string, width = 1600): Promise<string> {
+  const cdn = cdnImageVariantUrl(value, width);
   if (cdn) return cdn;
   if (!value.startsWith("s3:")) return value;
   const cached = signedUrls.get(value);

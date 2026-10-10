@@ -58,6 +58,7 @@ export function ImageField({
           src={value}
           alt={`${label} preview`}
           className="manager-image-preview"
+          sizes="320px"
         />
       )}
     </div>
