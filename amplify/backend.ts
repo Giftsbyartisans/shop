@@ -3,10 +3,12 @@ import { Duration, Stack } from 'aws-cdk-lib';
 import { CachePolicy, Distribution, Function as CloudFrontFunction, FunctionCode, FunctionEventType, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { auth } from './auth/resource';
+import { recoverProductionPool } from './auth/recover-production-pool';
 import { data } from './data/resource';
 import { storage } from './storage/resource';
 
 const backend = defineBackend({ auth, data, storage });
+recoverProductionPool(backend.auth.resources.cfnResources.cfnUserPool, backend.auth.resources.cfnResources.cfnUserPoolClient);
 // Keep the distribution in the bucket's stack to avoid an OAC policy cycle.
 const stack = Stack.of(backend.storage.resources.bucket);
 const restrictMedia = new CloudFrontFunction(stack, 'StorefrontMediaOnly', {
