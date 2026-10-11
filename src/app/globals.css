@@ -1122,3 +1122,6 @@ header .shop-search button:hover:not(:disabled){color:#222;background:#f4f4f4}
 
 .video-thumbnail .video-thumbnail-play,
 .product-photo-thumbnails .video-thumbnail .video-thumbnail-play{top:50%;left:50%;right:auto;bottom:auto;transform:translate(-50%,-50%)}
+
+.listing-detail-buy .etsy-button{touch-action:manipulation;position:relative;z-index:1;min-height:44px}
+@media(hover:none){.listing-detail-buy .etsy-button:hover{background:transparent;border-color:#222;color:inherit}}

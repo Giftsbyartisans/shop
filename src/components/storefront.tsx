@@ -422,7 +422,6 @@ export default function Storefront({
                       <a
                         className="etsy-button"
                         href={item.etsyUrl}
-                        target="_blank"
                         rel="noopener noreferrer"
                       >
                         Buy From Etsy
