@@ -77,8 +77,7 @@ function Carousel({
     const target = direction > 0
       ? positions.find(position => position > current + 2) ?? 0
       : [...positions].reverse().find(position => position < current - 2) ?? maxScroll;
-    // Exact card coordinates and immediate scrolling avoid mobile smooth-scroll/snap conflicts.
-    element.scrollLeft = target;
+    element.scrollTo({ left: target, behavior: "auto" });
   };
   const carouselEnabled = Children.count(children) > 5;
   return (

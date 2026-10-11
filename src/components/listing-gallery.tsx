@@ -14,7 +14,11 @@ export default function ListingGallery({ item }: { item: Listing }) {
     setIndex(normalized);
     const track = thumbnails.current;
     const button = track?.children[normalized] as HTMLElement | undefined;
-    if (track && button) track.scrollLeft = button.offsetLeft - track.offsetLeft;
+    if (track && button)
+      track.scrollTo({
+        left: button.offsetLeft - track.offsetLeft,
+        behavior: "auto",
+      });
   };
   return (
     <div>
@@ -35,7 +39,7 @@ export default function ListingGallery({ item }: { item: Listing }) {
             const dx = touch.clientX - origin.x, dy = touch.clientY - origin.y;
             if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) select(active + (dx < 0 ? 1 : -1));
           }}>
-          <ShopImage className="demo-detail-image" src={images[active]} alt={`${item.title} — photo ${active + 1}`}
+          <ShopImage key={images[active]} className="demo-detail-image" src={images[active]} alt={`${item.title} — photo ${active + 1}`}
             loading="eager" fetchPriority="high" sizes="(max-width: 768px) 90vw, 50vw" />
         </div>
         {images.length > 1 && <>

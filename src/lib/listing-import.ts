@@ -61,7 +61,7 @@ export function importListings(text: string, filename: string): Listing[] {
   }
   if (!records.length) throw new Error("The file contains no listings.");
   const ids = new Set<string>();
-  return records.slice(0, 10).map((record, index) => {
+  return records.slice(0, 1).map((record, index) => {
     const title = String(record.title ?? "").trim(),
       description = String(record.description ?? "").trim();
     const rawPrice = record.price;

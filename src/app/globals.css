@@ -876,3 +876,44 @@ header .shop-search button:hover:not(:disabled){color:#222;background:#f4f4f4}
   .admin-inbox-tabs { flex-direction: row; border-right: 0; padding: 12px 0; }
   .admin-inbox-body { padding-left: 16px; }
 }
+
+.shop-home .demo-track:not(.static-product-grid),
+.product-photo-thumbnails {
+  scroll-behavior: smooth;
+}
+.store-hero-slide > img,
+.product-photo-slide > img {
+  animation: carousel-image-arrive 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.customer-review-cards .testimonial-card {
+  transition:
+    opacity 650ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: carousel-card-arrive 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.customer-review-cards .testimonial-card.side {
+  transform: translateY(8px) scale(0.97);
+}
+.customer-review-cards .testimonial-card.featured {
+  transform: translateY(0) scale(1);
+}
+@keyframes carousel-image-arrive {
+  from { opacity: 0.7; transform: scale(1.025); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes carousel-card-arrive {
+  from { opacity: 0.55; translate: 0 10px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shop-home .demo-track:not(.static-product-grid),
+  .product-photo-thumbnails {
+    scroll-behavior: auto;
+  }
+  .store-hero-slide > img,
+  .product-photo-slide > img,
+  .customer-review-cards .testimonial-card {
+    animation: none;
+    transition: none;
+  }
+}

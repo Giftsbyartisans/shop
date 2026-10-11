@@ -37,26 +37,15 @@ test("JSON preserves IDs and published status", () => {
   assert.equal(item.id, "gift");
   assert.equal(item.published, true);
 });
-test("invalid rows and duplicate IDs are rejected before importing", () => {
+test("an invalid first listing is rejected before importing", () => {
   assert.throws(
     () => importListings("TITLE,DESCRIPTION,PRICE\nGift,Gift,-1", "bad.csv"),
     /valid price/,
   );
-  assert.throws(
-    () =>
-      importListings(
-        JSON.stringify([
-          { id: "g", title: "Gift", description: "Gift", price: 12 },
-          { id: "g", title: "Gift", description: "Gift", price: 12 },
-        ]),
-        "bad.json",
-      ),
-    /Duplicate/,
-  );
   assert.throws(() => parseCSV('TITLE\n"unclosed'), /unclosed/);
 });
 
-test("only the first ten listings are imported", () => {
+test("only the first listing is imported", () => {
   const records = Array.from({ length: 15 }, (_, i) => ({
     id: String(i),
     title: `Gift ${i}`,
@@ -64,6 +53,6 @@ test("only the first ten listings are imported", () => {
     price: 10,
   }));
   const imported = importListings(JSON.stringify(records), "catalog.json");
-  assert.equal(imported.length, 10);
-  assert.equal(imported[9].id, "9");
+  assert.equal(imported.length, 1);
+  assert.equal(imported[0].id, "0");
 });

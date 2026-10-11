@@ -34,7 +34,7 @@ export default function TestimonialCarousel({ reviews, intervalSeconds = 5 }: { 
         if (position !== 0 && (reviews.length === 1 || (reviews.length === 2 && position === 1)))
           return <div className="customer-review-placeholder" key={position} aria-hidden="true" />;
         const review = reviews[(active + position + reviews.length) % reviews.length];
-        return <figure key={position} className={`testimonial-card ${position === 0 ? 'featured' : 'side'}`}>
+        return <figure key={`${position}-${review.id}`} className={`testimonial-card ${position === 0 ? 'featured' : 'side'}`}>
           <div className="stars" role="img" aria-label={`${review.rating} out of 5 stars`}>
             <span aria-hidden="true">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
           </div>
