@@ -77,7 +77,8 @@ export function importListings(text: string, filename: string): Listing[] {
       throw new Error(
         `Row ${index + 1}: title, description, and a valid price are required.`,
       );
-    const id = String(record.id ?? record.listing_id ?? crypto.randomUUID());
+    const suppliedId = String(record.id ?? record.listing_id ?? "").trim();
+    const id = suppliedId || crypto.randomUUID();
     if (ids.has(id)) throw new Error(`Duplicate listing ID: ${id}`);
     ids.add(id);
     const image = String(record.image ?? record.image1 ?? "/demo/gift-0.svg");

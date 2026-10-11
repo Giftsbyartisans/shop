@@ -44,6 +44,15 @@ export default function ListingEditor({
   const photos = useRef<HTMLInputElement>(null),
     videos = useRef<HTMLInputElement>(null);
   const images = draft.images ?? [];
+  function movePhoto(from: number, to: number) {
+    if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return;
+    setDraft((current) => {
+      const next = [...(current.images ?? [])];
+      const [photo] = next.splice(from, 1);
+      next.splice(to, 0, photo);
+      return { ...current, images: next, image: next[0] ?? "" };
+    });
+  }
   const categories = Array.from(
     new Set([draft.category, ...content.categories.map((c) => c.name)]),
   ).filter(Boolean);
@@ -232,31 +241,54 @@ export default function ListingEditor({
           </p>
           <h3>Add up to 10 photos and 2 videos.</h3>
           <p className="listing-edit-help">
-            The first photo is your listing thumbnail.
+            Drag the three-dot handle to rearrange photos. The first photo is
+            your listing thumbnail.
           </p>
           <div className="listing-edit-media-grid">
             {images.map((image, index) => (
               <div
                 className="listing-edit-media-tile"
                 key={`${image}-${index}`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const draggedIndex = event.dataTransfer.getData("text/plain");
+                  if (draggedIndex) {
+                    const from = Number(draggedIndex);
+                    if (Number.isInteger(from)) movePhoto(from, index);
+                  }
+                }}
               >
                 <ShopImage src={image} alt={`Listing photo ${index + 1}`} sizes="160px" />
                 {index === 0 && (
                   <span className="listing-edit-primary">Primary</span>
                 )}
                 <div className="listing-edit-media-actions">
-                  {index > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = [...images];
-                        [next[0], next[index]] = [next[index], next[0]];
-                        setDraft({ ...draft, images: next, image: next[0] });
-                      }}
-                    >
-                      Make primary
-                    </button>
-                  )}
+                  <button
+                    className="listing-edit-photo-drag-handle"
+                    type="button"
+                    draggable
+                    aria-label={`Drag to reorder photo ${index + 1}`}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData("text/plain", String(index));
+                      event.dataTransfer.effectAllowed = "move";
+                    }}
+                  >
+                    <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true">
+                      <circle cx="4" cy="3" r="1.4" />
+                      <circle cx="8" cy="3" r="1.4" />
+                      <circle cx="12" cy="3" r="1.4" />
+                      <circle cx="4" cy="8" r="1.4" />
+                      <circle cx="8" cy="8" r="1.4" />
+                      <circle cx="12" cy="8" r="1.4" />
+                      <circle cx="4" cy="13" r="1.4" />
+                      <circle cx="8" cy="13" r="1.4" />
+                      <circle cx="12" cy="13" r="1.4" />
+                    </svg>
+                  </button>
                   <button
                     type="button"
                     aria-label={`Remove photo ${index + 1}`}
