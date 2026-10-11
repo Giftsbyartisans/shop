@@ -15,10 +15,13 @@ const listing: Listing = {
   image: "/demo/gift-0.svg",
   published: false,
 };
-test("sale price overrides discount only while the store sale is enabled", () => {
+test("saved sale price applies independently of the storewide sale", () => {
   assert.equal(listingPrice({ ...listing, salePrice: 40 }, true, 20), 40);
-  assert.equal(listingPrice({ ...listing, salePrice: 40 }, false, 20), 100);
+  assert.equal(listingPrice({ ...listing, salePrice: 40 }, false, 20), 40);
   assert.equal(listingPrice(listing, true, 20), 80);
+  assert.equal(listingPrice(listing, false, 20), 100);
+  assert.equal(listingPrice({ ...listing, salePrice: 0 }, false, 20), 0);
+  assert.equal(listingPrice({ ...listing, salePrice: 100 }, true, 20), 100);
 });
 test("sale and media limits are enforced", () => {
   assert.throws(

@@ -1,5 +1,7 @@
 export default function ManagerIcon({ name }: { name: string }) {
   const paths: Record<string, string> = {
+    "Admin preferences": "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6",
+    "Import & export": "M7 18V4m-4 4 4-4 4 4M17 6v14m-4-4 4 4 4-4",
     download: "M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5",
     upload: "M12 16V4m-5 5 5-5 5 5M4 16v5h16v-5",
     trash: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7",

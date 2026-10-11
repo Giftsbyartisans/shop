@@ -16,6 +16,7 @@ import {
   deleteInquiry,
 } from "@/lib/backend";
 import AdminSettings from "@/components/admin-settings";
+import ReviewTransfer from "@/components/review-transfer";
 import ManagerIcon from "@/components/manager-icon";
 import ListingEditor from "@/components/listing-editor";
 import AdminListings from "@/components/admin-listings";
@@ -40,6 +41,7 @@ export default function Admin() {
     total: number;
   } | null>(null);
   const [editorOnly, setEditorOnly] = useState(false);
+  const [categoryEditing, setCategoryEditing] = useState(false);
   const openedListing = useRef(false);
   async function refresh() {
     const [list, inbox] = await Promise.all([
@@ -257,6 +259,7 @@ export default function Admin() {
     try {
       await saveShopContent(content);
       setDirty(false);
+      window.dispatchEvent(new CustomEvent("admin-desktop-setting", { detail: content.adminDesktopOnly }));
       setStatus("Website changes saved. Your shop is up to date.");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Save failed.");
@@ -386,9 +389,11 @@ export default function Admin() {
     "Testimonials",
     "Social & footer",
     "Pages & policies",
+    "Admin preferences",
   ];
-  const tabs = ["Listings", "Messages", ...settingsTabs];
-  const isSettings = settingsTabs.includes(tab);
+  const nestedSettings = ["Settings", "Sale", "Social & footer", "Pages & policies", "Admin preferences"];
+  const tabs = ["Listings", "Messages", ...settingsTabs.filter(name => !nestedSettings.includes(name))];
+  const isSettings = settingsTabs.includes(tab) || tab === "Settings";
   return (
     <main
       className={`manager-shell${collapsed ? " manager-collapsed" : ""}`}
@@ -423,6 +428,21 @@ export default function Admin() {
               <span>{name}</span>
             </button>
           ))}
+          <details className="manager-settings-group">
+            <summary title="Settings" onClick={() => { if (collapsed) setCollapsed(false); }}>
+              <ManagerIcon name="Settings" /><span>Settings</span>
+              <svg className="manager-settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            </summary>
+            <div className="manager-settings-children">
+              {nestedSettings.map(name => (
+                <button key={name} type="button" disabled={busy || uploading} title={name === "Settings" ? "Import & export" : name}
+                  aria-current={tab === name ? "page" : undefined}
+                  onClick={() => { setTab(name); setEditing(null); setStatus(""); }}>
+                  <ManagerIcon name={name === "Settings" ? "Import & export" : name} /><span>{name === "Settings" ? "Import & export" : name}</span>
+                </button>
+              ))}
+            </div>
+          </details>
         </nav>
         <div className="manager-account-actions">
           <Link
@@ -449,7 +469,13 @@ export default function Admin() {
         </div>
       </aside>
       <section className="manager-main">
-        {tab !== "Listings" && <h1>{tab}</h1>}
+        {tab !== "Listings" && (tab === "Categories" ? (
+          <div className="manager-section-heading">
+            <h1>{tab}</h1>
+            <button type="button" disabled={busy || uploading || !contentReady} aria-pressed={categoryEditing}
+              onClick={() => setCategoryEditing(value => !value)}>{categoryEditing ? "Done" : "Edit"}</button>
+          </div>
+        ) : <h1>{tab}</h1>)}
         {status && (
           <p className="manager-feedback" role="status">
             {status}
@@ -477,6 +503,23 @@ export default function Admin() {
             >
               {listingEditor}
             </AdminListings>
+          ) : tab === "Admin preferences" ? (
+            <>
+              <label className="check">
+                <input type="checkbox" checked={content.adminDesktopOnly}
+                  onChange={event => change("adminDesktopOnly", event.target.checked)} />
+                Desktop-only admin panel
+              </label>
+              <p className="manager-help">When enabled, screens narrower than 1024px show a desktop-only message. Save website changes to apply.</p>
+            </>
+          ) : tab === "Settings" ? (
+            <>
+            <AdminListings transferOnly items={items} bestSellerIds={content.bestSellerIds}
+              onBestSeller={toggleBestSeller} onSave={save} onError={setStatus} onAdd={() => {}}>
+              {null}
+            </AdminListings>
+            <ReviewTransfer reviews={content.reviews} onChange={reviews => change("reviews", reviews)} />
+            </>
           ) : tab === "Messages" ? (
             <>
               <div className="manager-entry-heading">
@@ -547,7 +590,7 @@ export default function Admin() {
             </>
           ) : contentReady ? (
             <AdminSettings
-              {...{ tab, content, change }}
+              {...{ tab, content, change, categoryEditing }}
               onBusy={setUploading}
               onError={setStatus}
             />

@@ -5,10 +5,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatPrice, type Listing } from "@/lib/catalog";
 import { demoListings } from "@/lib/catalog";
 import { importListings } from "@/lib/listing-import";
-import ShopImage from "./shop-image";
+import ShopImage, { uploadImage } from "./shop-image";
+import { fetchAuthSession } from "aws-amplify/auth";
+import { getProperties } from "aws-amplify/storage";
+import { copyEtsyImages, etsyUploadId } from "@/lib/etsy-image-import";
+import { mediaUploadPrefix } from "@/lib/media-paths";
 import ManagerIcon from "./manager-icon";
 
 type Props = {
+  transferOnly?: boolean;
   items: Listing[];
   bestSellerIds: string[];
   onBestSeller: (id: string) => Promise<void>;
@@ -28,13 +33,13 @@ export default function AdminListings({
   onAdd,
   onError,
   children,
+  transferOnly = false,
 }: Props) {
   const [query, setQuery] = useState(""),
     [category, setCategory] = useState(""),
     [sort, setSort] = useState("newest"),
     [status, setStatus] = useState("all"),
-    [bestOnly, setBestOnly] = useState(false),
-    [deleting, setDeleting] = useState(false);
+    [bestOnly, setBestOnly] = useState(false);
   const [importProgress, setImportProgress] = useState<{
     filename: string;
     completed: number;
@@ -44,6 +49,7 @@ export default function AdminListings({
   } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const selectedItems = items.filter((item) => selectedIds.has(item.id));
+  const [confirmSelectedDelete, setConfirmSelectedDelete] = useState(false);
   useEffect(() => {
     if (importProgress?.phase !== "success") return;
     const timer = window.setTimeout(() => setImportProgress(null), 2000);
@@ -96,7 +102,7 @@ export default function AdminListings({
             className={`manager-import-popup ${importProgress.phase}`}
             role="status"
             aria-live="polite"
-            aria-label="Listing import progress"
+            aria-label="Import progress"
           >
             <div className="manager-import-heading">
               <strong>
@@ -141,7 +147,7 @@ export default function AdminListings({
           </section>,
           document.body,
         )}
-      <div className="manager-listing-toolbar">
+      {!transferOnly && <div className="manager-listing-toolbar">
         <h1>Listings</h1>
         <label className="manager-listing-search">
           <input
@@ -155,24 +161,17 @@ export default function AdminListings({
         <button className="primary" onClick={onAdd}>
           <span aria-hidden="true">＋</span>Add a listing
         </button>
-      </div>
+      </div>}
+      {transferOnly && <><h2>Listing import &amp; export</h2><p className="manager-help">Import Etsy CSV or JSON, or download your catalog as JSON.</p></>}
       <div className="manager-listing-tools">
-        <button onClick={exportJSON} disabled={!items.length}>
+        {transferOnly && <><button onClick={exportJSON} disabled={!items.length}>
           <ManagerIcon name="download" />
           {selectedItems.length ? "Export selected JSON" : "Export JSON"}
         </button>
-        <button onClick={() => file.current?.click()}>
+        <button disabled={importProgress?.phase === "reading" || importProgress?.phase === "saving"} onClick={() => file.current?.click()}>
           <ManagerIcon name="upload" />
           Import Etsy CSV / JSON
-        </button>
-        <button
-          className="manager-delete-all"
-          disabled={!items.length}
-          onClick={() => setDeleting(true)}
-        >
-          <ManagerIcon name="trash" />
-          Delete all listings
-        </button>
+        </button></>}
         <input
           ref={file}
           type="file"
@@ -192,10 +191,42 @@ export default function AdminListings({
             try {
               if (selected.size > 8 * 1024 * 1024)
                 throw new Error("Import files must be under 8 MB.");
-              const incoming = importListings(
+              const parsed = importListings(
                 await selected.text(),
                 selected.name,
               );
+              const session = await fetchAuthSession();
+              const token = session.tokens?.accessToken.toString();
+              if (!token) throw new Error("Sign in before importing photos.");
+              const imported = await copyEtsyImages(parsed, async (source, listing) => {
+                const uploadId = await etsyUploadId(listing.id, source);
+                // Stable listing ID keeps reuse working even when its title changes.
+                const context = { kind: "listing-images" as const, name: "etsy", entityId: listing.id };
+                const filename = "etsy-photo";
+                const path = `${mediaUploadPrefix(context, filename, uploadId)}/1600.webp`;
+                try {
+                  await getProperties({ path });
+                  return `s3:${path}`;
+                } catch (error) {
+                  const missing = error instanceof Error && ["NotFound", "NoSuchKey"].includes(error.name);
+                  const status = (error as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+                  if (!missing && status !== 404) throw error;
+                }
+                const response = await fetch("/api/import-image", {
+                  method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ url: source }), signal: AbortSignal.timeout(25000),
+                });
+                if (!response.ok) {
+                  const result = await response.json();
+                  throw new Error(result.error || "Photo download failed.");
+                }
+                const blob = await response.blob();
+                return uploadImage(new File([blob], filename, { type: blob.type }), context, uploadId);
+              }, (completed, total) => setImportProgress(current => current && {
+                ...current, phase: "saving", completed, total,
+                message: `Copying and optimizing Etsy photos: ${completed} of ${total}`,
+              }));
+              const incoming = imported.listings;
               const merged = new Map(items.map((i) => [i.id, i]));
               incoming.forEach((i) => merged.set(i.id, i));
               setImportProgress(
@@ -227,9 +258,11 @@ export default function AdminListings({
                 (current) =>
                   current && {
                     ...current,
-                    phase: saved ? "success" : "error",
+                    phase: saved && !imported.warnings.length ? "success" : "error",
                     message: saved
-                      ? `${incoming.length} listings imported successfully.`
+                      ? imported.warnings.length
+                        ? `Listings saved. Failed photos kept their listings as drafts: ${imported.warnings.join("; ")}`
+                        : `${incoming.length} listings imported successfully.`
                       : "Import did not finish. Some listings may have been saved. Check the catalog before retrying.",
                   },
               );
@@ -252,31 +285,10 @@ export default function AdminListings({
           }}
         />
       </div>
-      <p className="manager-listing-count" role="status">
-        {filtered.length} {filtered.length === 1 ? "listing" : "listings"}
-      </p>
-      {deleting && (
-        <div className="manager-delete-confirm" role="alert">
-          <p>
-            Delete all {items.length} listings? Published gifts will also be
-            removed from the shop. This cannot be undone.
-          </p>
-          <button
-            className="manager-delete-all"
-            onClick={async () => {
-              if (await onSave([])) setDeleting(false);
-            }}
-          >
-            Confirm deletion
-          </button>
-          <button onClick={() => setDeleting(false)}>Cancel</button>
-        </div>
-      )}
-      <p className="manager-import-limit">
-        Imports are limited to the first 10 listings per file.
-      </p>
+      {!transferOnly && <>
       {children}
       <div className="manager-selection-bar">
+        <div className="manager-bulk-select">
         <label className="check">
           <input
             type="checkbox"
@@ -304,15 +316,35 @@ export default function AdminListings({
               });
             }}
           />
-          Select all
+          <span className="sr-only">Select all filtered listings</span>
         </label>
+        <details className="manager-selection-menu">
+          <summary aria-label="Selection options"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="m2 4 4 4 4-4Z" /></svg></summary>
+          <div>
+            <button type="button" onClick={event => { setSelectedIds(new Set(filtered.map(item => item.id))); event.currentTarget.closest("details")?.removeAttribute("open"); }}>Select all shown</button>
+            <button type="button" onClick={event => { setSelectedIds(new Set(filtered.filter(item => item.published).map(item => item.id))); event.currentTarget.closest("details")?.removeAttribute("open"); }}>Select published</button>
+            <button type="button" onClick={event => { setSelectedIds(new Set(filtered.filter(item => !item.published).map(item => item.id))); event.currentTarget.closest("details")?.removeAttribute("open"); }}>Select inactive</button>
+          </div>
+        </details>
+        </div>
+
+        <button className="manager-bulk-action" type="button" disabled={!selectedItems.some(item => item.published)}
+          onClick={async () => {
+            if (await onSave(items.map(item => selectedIds.has(item.id) ? { ...item, published: false } : item))) setSelectedIds(new Set());
+          }}>Deactivate</button>
+        <button className="manager-bulk-action" type="button" disabled={!selectedItems.length} onClick={() => setConfirmSelectedDelete(true)}>Delete</button>
         <span role="status">{selectedItems.length} selected</span>
-        {selectedItems.length > 0 && (
-          <button type="button" onClick={() => setSelectedIds(new Set())}>
-            Clear selection
-          </button>
-        )}
+
       </div>
+      {confirmSelectedDelete && <div className="manager-delete-confirm" role="alert">
+        <p>Delete {selectedItems.length} selected listings and their unused S3 files? This cannot be undone.</p>
+        <button type="button" disabled={!selectedItems.length} onClick={async () => {
+          if (await onSave(items.filter(item => !selectedIds.has(item.id)))) {
+            setConfirmSelectedDelete(false); setSelectedIds(new Set());
+          }
+        }}>Confirm deletion</button>
+        <button type="button" onClick={() => setConfirmSelectedDelete(false)}>Cancel</button>
+      </div>}
       <div className="manager-listing-layout">
         <div>
           <div className="manager-listing-grid">
@@ -416,7 +448,7 @@ export default function AdminListings({
               <p>
                 {items.length
                   ? "Try changing your search or filters."
-                  : "Create a gift listing or import your catalog."}
+                  : "Create a product listing or import your catalog."}
               </p>
               {!items.length && (
                 <button onClick={() => onSave([...demoListings])}>
@@ -481,6 +513,7 @@ export default function AdminListings({
           </fieldset>
         </aside>
       </div>
+      </>}
     </div>
   );
 }

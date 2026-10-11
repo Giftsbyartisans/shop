@@ -15,8 +15,9 @@ const poppins = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "GiftsByArtisans | Thoughtful gifts",
-  description: "Discover gifts with a personal touch. Made for thoughtful giving.",
+  title: "GiftsByArtisans | Thoughtful products",
+  icons: { icon: { url: "/api/favicon", sizes: "48x48" } },
+  description: "Discover products with a personal touch. Made for thoughtful giving.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

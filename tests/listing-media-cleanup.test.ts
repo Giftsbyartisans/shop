@@ -54,3 +54,22 @@ test('removed banners delete original and variants while retained logo and listi
   assert.equal(deleted.length, 5);
   assert.ok(deleted.every(path => path.startsWith(folder)));
 });
+
+test('category, logo and favicon removal cleans complete upload folders while preserving shared category images', async () => {
+  const id = '12345678-1234-1234-1234-123456789abc';
+  const category = `media/categories/copper/photo--${id}/`;
+  const logo = `media/logos/website/logo--${id}/`;
+  const favicon = `media/favicons/website/icon--${id}/`;
+  const shared = `media/categories/shared/photo--${id}/`;
+  const removed: string[] = [];
+  await cleanupListingMedia({
+    categories: [{ image: `s3:${category}1600.webp` }, { image: `s3:${shared}1600.webp` }],
+    logo: `s3:${logo}1600.webp`, favicon: `s3:${favicon}1600.webp`,
+  }, [{ images: [`s3:${shared}320.webp`] }], {
+    list: async prefix => ['original.png', '320.webp', '1600.webp'].map(name => prefix + name),
+    remove: async path => { removed.push(path); },
+  });
+  assert.equal(removed.length, 9);
+  assert.ok(!removed.some(path => path.startsWith(shared)));
+  for (const prefix of [category, logo, favicon]) assert.ok(removed.includes(prefix + 'original.png'));
+});

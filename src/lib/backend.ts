@@ -5,7 +5,7 @@ import { fetchAuthSession } from "aws-amplify/auth";
 import { list, remove, uploadData } from "aws-amplify/storage";
 import { PUBLIC_CATALOG_PATH } from "./public-catalog";
 import { PUBLIC_SETTINGS_PATH } from "./public-shop-content";
-import { cleanupListingMedia } from "./listing-media-cleanup";
+import { cleanupListingMedia, mediaReferences } from "./listing-media-cleanup";
 import outputs from "../../amplify_outputs.json";
 import type { Schema } from "../../amplify/data/resource";
 import {
@@ -105,13 +105,34 @@ export async function saveListing(item: Listing) {
     adminAuth,
   );
   check(existingPublic);
-  if (!published && existingPublic.data)
-    check(await client.models.Listing.delete({ id: item.id }, adminAuth));
   const existingDraft = await client.models.DraftListing.get(
     { id: item.id },
     adminAuth,
   );
   check(existingDraft);
+  const currentMedia = new Set(mediaReferences(item));
+  const removedMedia = mediaReferences([existingPublic.data, existingDraft.data])
+    .filter(path => !currentMedia.has(path)).map(path => `s3:${path}`);
+  if (removedMedia.length) {
+    const [drafts, publicListings, content] = await Promise.all([
+      listListings(true), listListings(false), loadShopContent(),
+    ]);
+    try {
+      await cleanupListingMedia(removedMedia, [item, content,
+        drafts.filter(listing => listing.id !== id),
+        publicListings.filter(listing => listing.id !== id)], {
+        list: async prefix => {
+          const result = await list({ path: prefix, options: { listAll: true } });
+          return result.items.map(asset => asset.path);
+        },
+        remove: async path => { await remove({ path }); },
+      });
+    } catch {
+      throw new Error("Media cleanup failed. Listing records were kept so you can save again to retry. Some files may already have been removed.");
+    }
+  }
+  if (!published && existingPublic.data)
+    check(await client.models.Listing.delete({ id: item.id }, adminAuth));
   if (existingDraft.data)
     check(await client.models.DraftListing.update(draftItem, adminAuth));
   else check(await client.models.DraftListing.create(draftItem, adminAuth));
@@ -222,9 +243,9 @@ export async function saveShopContent(content: ShopContent) {
     const raw = typeof existing.data.content === "string"
       ? JSON.parse(existing.data.content) : existing.data.content;
     const previous = { ...structuredClone(defaultContent), ...raw } as ShopContent;
-    const currentImages = new Set(content.banners.map(banner => banner.image));
-    const removedImages = previous.banners.map(banner => banner.image)
-      .filter(image => image.startsWith("s3:media/") && !currentImages.has(image));
+    const currentImages = new Set(mediaReferences(content));
+    const removedImages = mediaReferences(previous)
+      .filter(path => !currentImages.has(path)).map(path => `s3:${path}`);
     if (removedImages.length) {
       const [drafts, published] = await Promise.all([listListings(true), listListings()]);
       try {
@@ -236,7 +257,7 @@ export async function saveShopContent(content: ShopContent) {
           remove: async path => { await remove({ path }); },
         });
       } catch {
-        throw new Error("Banner cleanup failed. Website settings were kept so you can save again to retry. Some files may already have been removed.");
+        throw new Error("Image cleanup failed. Website settings were kept so you can save again to retry. Some files may already have been removed.");
       }
     }
   }

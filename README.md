@@ -52,9 +52,9 @@ Listing editors provide Save draft, Publish listing, and Unpublish listing actio
 
 ## Full-page listing editor
 
-The editor uses a two-column form with regular and optional sale prices, Etsy/Pinterest URLs, category, photo/video tiles, a description, and best-seller selection. Up to 10 photos (PNG/JPEG/WebP, 8 MB each) and 2 videos (MP4/WebM, 50 MB each) are supported. The first photo is the thumbnail; use Make primary to reorder it. Removing a tile changes the listing without deleting the uploaded object from S3.
+The editor uses a two-column form with regular and optional sale prices, Etsy/Pinterest URLs, category, photo/video tiles, a description, and best-seller selection. Up to 10 photos (PNG/JPEG/WebP, 8 MB each) and 2 videos (MP4/WebM, 50 MB each) are supported. The first photo is the thumbnail; use Make primary to reorder it. Removing a photo/video tile deletes its unused S3 original and variants when the listing is saved.
 
-Sale prices apply only while the store sale is enabled and override its percentage discount. Customer listing pages display the photo gallery and videos. Publish remains a button. Successful saves close the editor tab. Deploy the added `salePrice`, `images`, and `videos` fields with `npm run sandbox` before using these features with AWS.
+Saved sale prices apply independently of the storewide sale switch and override its percentage discount. Customer listing pages display the photo gallery and videos. Publish remains a button. Successful saves close the editor tab. Deploy the added `salePrice`, `images`, and `videos` fields with `npm run sandbox` before using these features with AWS.
 
 ### Storefront image delivery
 
@@ -88,3 +88,13 @@ Removing a saved banner or replacing its image and then saving Website settings 
 ### Descriptive S3 upload folders
 
 New media is organized under `media/banners/`, `media/categories/`, `media/logos/`, `media/favicons/`, `media/listing-images/`, and `media/listing-videos/`. Each contains a readable entity name (with its ID when available), then the original filename stem and a unique upload ID. Example: `media/listing-images/copper-gift-box-product-42/front-view--<uuid>/original.jpg`, alongside `320.webp`, `640.webp`, `960.webp`, and `1600.webp`. Names are sanitized for safe S3 keys. A renamed listing keeps its earlier upload path; subsequent uploads use the current title. Older UUID-only objects keep their existing paths, and both layouts work with CloudFront, responsive image selection, and media cleanup. Originals and variants are deleted per upload folder, never by deleting an entire listing/category folder. Public settings/catalog snapshots retain their stable filenames at the media root.
+
+### Etsy photo imports
+
+CSV/JSON imports copy photos hosted on `i.etsystatic.com` and `img0`–`img4.etsystatic.com` into `media/listing-images/etsy-<listing-id>/`. The authenticated admin download endpoint checks the source and image bytes, limits downloads to 8 MB, and rejects redirects. The browser generates the same responsive WebP sizes as normal uploads; delivery uses the configured CloudFront CDN. Etsy listing links remain unchanged. Other external image hosts retain their URLs.
+
+Reimports with the same listing ID and photo URL reuse an existing S3 copy. Include `listing_id` or `id` in the import to preserve this identity; files without IDs generate new listings. Failed photo copies leave the affected imported listings as drafts and show the error so you can retry. Successfully copied photos are retained. Uploads require a browser supporting WebP canvas and image decoding, as with regular uploads. Deploy the new `/api/import-image` route before testing this on the hosted site.
+
+Saved listing sale prices display independently of the storewide sale switch. The storewide percentage applies to listings without a saved sale price. Discounted listings show their original price and percentage off on cards and product pages; all listings display a FREE shipping tag.
+
+Removing or replacing saved category images, banners, logos, or favicons cleans up their unused S3 upload folders when website changes are saved. Files referenced by another listing or website field are preserved. Cleanup failures stop the save so it can be retried. Removing unsaved uploads does not trigger this saved-record cleanup.

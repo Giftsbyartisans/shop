@@ -14,7 +14,7 @@ export function ShopHeader({ content }: { content: ShopContent }) {
         <nav>
           <Link href="/#categories">Categories</Link>
           <Link href="/collection">Collections</Link>
-          <Link href="/#best-sellers">Best sellers</Link>
+          <Link href="/best-sellers">Best sellers</Link>
           <Link href="/contact">Contact</Link>
         </nav>
         <form action="/collection" className="shop-search" role="search">
@@ -61,12 +61,12 @@ export function ShopFooter({ content }: { content: ShopContent }) {
         <div>
           <Brand content={content} />
           <p>{content.footerText}</p>
-          <SocialLinks content={content} />
+          {content.instagram && <div className="links"><Link href={content.instagram} target="_blank" rel="noopener noreferrer">Instagram</Link></div>}
         </div>
         <div>
           <h3>Explore</h3>
           <Link href="/#categories">Shop by category</Link>
-          <Link href="/#best-sellers">Best sellers</Link>
+          <Link href="/best-sellers">Best sellers</Link>
           <Link href="/wholesale">Wholesale inquiry</Link>
         </div>
         <div>

@@ -31,7 +31,7 @@ export async function imageUrl(value: string, width = 1600): Promise<string> {
   pendingUrls.set(value, request);
   return request;
 }
-export async function uploadImage(file: File, context: MediaUploadContext = { kind: "images", name: "general" }) {
+export async function uploadImage(file: File, context: MediaUploadContext = { kind: "images", name: "general" }, uploadId = crypto.randomUUID()) {
   if (
     !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
     file.size > 8 * 1024 * 1024
@@ -42,7 +42,7 @@ export async function uploadImage(file: File, context: MediaUploadContext = { ki
     bitmap.close();
     throw new Error("Choose an image up to 40 megapixels with a height no more than 10 times its width.");
   }
-  const prefix = mediaUploadPrefix(context, file.name, crypto.randomUUID());
+  const prefix = mediaUploadPrefix(context, file.name, uploadId);
   const uploaded: string[] = [];
   try {
     // Prepare every variant before writing anything; unsupported WebP fails cleanly.

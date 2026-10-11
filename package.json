@@ -12,9 +12,11 @@
   },
   "dependencies": {
     "aws-amplify": "^6.22.1",
+    "aws-jwt-verify": "^5.2.1",
     "next": "16.4.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@aws-amplify/backend": "^1.25.1",

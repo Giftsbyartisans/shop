@@ -2,7 +2,7 @@
 import type { ShopContent } from "@/lib/content";
 import ShopImage, { uploadImage } from "./shop-image";
 import type { MediaUploadContext } from "@/lib/media-paths";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export function ImageField({
   label,
@@ -73,13 +73,37 @@ export default function AdminSettings({
   change,
   onBusy,
   onError,
+  categoryEditing = false,
 }: {
   tab: string;
+  categoryEditing?: boolean;
   content: ShopContent;
   change: <K extends keyof ShopContent>(key: K, value: ShopContent[K]) => void;
   onBusy: (busy: boolean) => void;
   onError: (message: string) => void;
 }) {
+  const drag = useRef<{
+    id: string; target: string; startY: number; scrollY: number; center: number; extent: number;
+    tiles: { id: string; element: HTMLElement; center: number }[];
+  } | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const resetDrag = () => {
+    for (const tile of drag.current?.tiles ?? []) {
+      tile.element.style.transform = "";
+      tile.element.classList.remove("category-dragging");
+    }
+    drag.current = null;
+    setDropTarget(null);
+  };
+  const moveCategory = (id: string, target: string) => {
+    const from = content.categories.findIndex(category => category.id === id);
+    const to = content.categories.findIndex(category => category.id === target);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = [...content.categories];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    change("categories", next);
+  };
   const image = (
     label: string,
     value: string,
@@ -201,23 +225,77 @@ export default function AdminSettings({
       <>
         <p className="manager-help">
           Use the same category names in your listings. Customers can browse
-          gifts by category.
+          products by category. Drag the handles to rearrange categories, then save website changes. You can also focus a handle and use the arrow keys.
         </p>
-        {content.categories.map((category) => (
-          <article className="manager-entry" key={category.id}>
-            <div className="manager-entry-heading">
-              <h3>{category.name || "New category"}</h3>
-              <button
-                onClick={() =>
-                  change(
-                    "categories",
-                    content.categories.filter((c) => c.id !== category.id),
-                  )
-                }
-              >
-                Remove
+        {content.categories.map((category, index) => (
+          <details className={`manager-entry manager-category-entry${dropTarget === category.id ? " category-drop-target category-dragging" : ""}`} data-category-id={category.id} key={category.id}>
+            <summary className="manager-category-summary">
+              <button className="manager-category-drag" type="button" aria-label={`Reorder ${category.name || "category"}`}
+                onClick={event => { event.preventDefault(); event.stopPropagation(); }}
+                onPointerDown={event => {
+                  if (event.button !== 0) return;
+                  event.preventDefault();
+                  event.currentTarget.focus();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  const entry = event.currentTarget.closest<HTMLElement>('[data-category-id]');
+                  if (!entry?.parentElement) return;
+                  const tiles = Array.from(entry.parentElement.querySelectorAll<HTMLElement>('[data-category-id]')).map(element => {
+                    const rect = element.getBoundingClientRect();
+                    return { id: element.dataset.categoryId!, element, center: rect.top + rect.height / 2 };
+                  });
+                  const rect = entry.getBoundingClientRect();
+                  const tileIndex = tiles.findIndex(tile => tile.id === category.id);
+                  const nextTile = tiles[tileIndex + 1]?.element.getBoundingClientRect();
+                  const previousTile = tiles[tileIndex - 1]?.element.getBoundingClientRect();
+                  const gap = nextTile ? nextTile.top - rect.bottom : previousTile ? rect.top - previousTile.bottom : 0;
+                  drag.current = { id: category.id, target: category.id, startY: event.clientY, scrollY: window.scrollY,
+                    center: rect.top + rect.height / 2,
+                    extent: rect.height + Math.max(0, gap), tiles };
+                  setDropTarget(category.id);
+                }}
+                onPointerMove={event => {
+                  if (!drag.current || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+                  const active = drag.current;
+                  const delta = event.clientY - active.startY + window.scrollY - active.scrollY;
+                  const center = active.center + delta;
+                  const from = active.tiles.findIndex(tile => tile.id === active.id);
+                  let to = from;
+                  for (let i = 0; i < active.tiles.length; i++) {
+                    if (i > from && center > active.tiles[i].center) to = i;
+                    if (i < from && center < active.tiles[i].center) { to = i; break; }
+                  }
+                  active.target = active.tiles[to].id;
+                  active.tiles.forEach((tile, index) => {
+                    const offset = index === from ? delta
+                      : from < to && index > from && index <= to ? -active.extent
+                      : from > to && index >= to && index < from ? active.extent : 0;
+                    tile.element.style.transform = `translateY(${offset}px)`;
+                  });
+                  if (event.clientY < 80) window.scrollBy(0, -16);
+                  else if (event.clientY > window.innerHeight - 80) window.scrollBy(0, 16);
+                }}
+                onPointerUp={event => {
+                  if (!drag.current) return;
+                  const { id, target } = drag.current;
+                  resetDrag();
+                  moveCategory(id, target);
+                  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                }}
+                onPointerCancel={resetDrag}
+                onLostPointerCapture={resetDrag}
+                onKeyDown={event => {
+                  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+                  event.preventDefault();
+                  const target = content.categories[index + (event.key === "ArrowUp" ? -1 : 1)];
+                  if (target) moveCategory(category.id, target.id);
+                }}>
+                <svg width="18" height="22" viewBox="0 0 18 22" fill="currentColor" aria-hidden="true">
+                  {[5, 11, 17].flatMap(y => [6, 12].map(x => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.5" />))}
+                </svg>
               </button>
-            </div>
+              <span>{category.name || "New category"}</span>
+
+            </summary>
             <label>
               Category name
               <input
@@ -241,7 +319,17 @@ export default function AdminSettings({
               ),
               { kind: "categories", name: category.name, entityId: category.id },
             )}
-          </article>
+            {categoryEditing && <button type="button" className="manager-category-remove"
+                onClick={() =>
+                  change(
+                    "categories",
+                    content.categories.filter((c) => c.id !== category.id),
+                  )
+                }
+              >
+                Remove category
+              </button>}
+          </details>
         ))}
         <button
           disabled={content.categories.length >= 30}
@@ -278,9 +366,9 @@ export default function AdminSettings({
           />
         </label>
         <p className="manager-help">
-          The discount applies to each published gift’s regular price. Disable
-          the sale to restore regular prices. Edit sale announcements in Brand &
-          announcement.
+          The storewide discount applies to products without a saved sale price.
+          Saved listing sale prices apply even when this switch is off. Edit sale
+          announcements in Brand & announcement.
         </p>
       </>
     );
@@ -290,21 +378,16 @@ export default function AdminSettings({
         <p className="manager-help">
           Add customer reviews you have permission to publish.
         </p>
+        <label>
+          Autoplay interval (seconds)
+          <input type="number" min="0" max="300" step="1" value={content.testimonialIntervalSeconds ?? 5}
+            onChange={event => change("testimonialIntervalSeconds", Number(event.target.value))} />
+        </label>
+        <p className="manager-help">Default: 5 seconds. Set 0 to disable autoplay. Save website changes to apply.</p>
         {content.reviews.map((review) => (
-          <article className="manager-entry" key={review.id}>
-            <div className="manager-entry-heading">
-              <h3>{review.name || "New testimonial"}</h3>
-              <button
-                onClick={() =>
-                  change(
-                    "reviews",
-                    content.reviews.filter((r) => r.id !== review.id),
-                  )
-                }
-              >
-                Remove
-              </button>
-            </div>
+          <details className="manager-entry manager-policy-entry" key={review.id}>
+            <summary className="manager-category-summary"><span>{review.name || "New testimonial"}</span></summary>
+            <div className="manager-policy-content">
             <label>
               Customer display name
               <input
@@ -318,6 +401,9 @@ export default function AdminSettings({
                   )
                 }
               />
+            </label>
+            <label>Review date
+              <input type="date" value={review.dateReviewed ?? ""} onChange={event => change("reviews", content.reviews.map(item => item.id === review.id ? { ...item, dateReviewed: event.target.value || undefined } : item))} />
             </label>
             <label>
               Rating (1–5)
@@ -354,7 +440,18 @@ export default function AdminSettings({
                 }
               />
             </label>
-          </article>
+              <button type="button"
+                onClick={() =>
+                  change(
+                    "reviews",
+                    content.reviews.filter((r) => r.id !== review.id),
+                  )
+                }
+              >
+                Remove testimonial
+              </button>
+            </div>
+          </details>
         ))}
         <button
           disabled={content.reviews.length >= 50}
@@ -386,25 +483,18 @@ export default function AdminSettings({
     );
   return (
     <>
-      <h2>Contact & wholesale</h2>
-      {field("contactText", "Contact page introduction", true)}
-      {field("wholesaleText", "Wholesale page introduction", true)}
+      <details className="manager-entry manager-policy-entry">
+        <summary className="manager-category-summary"><span>Contact &amp; wholesale</span></summary>
+        <div className="manager-policy-content">
+          {field("contactText", "Contact page introduction", true)}
+          {field("wholesaleText", "Wholesale page introduction", true)}
+        </div>
+      </details>
       <h2>Shop policies</h2>
       {content.policies.map((policy) => (
-        <article className="manager-entry" key={policy.id}>
-          <div className="manager-entry-heading">
-            <h3>{policy.title || "New policy"}</h3>
-            <button
-              onClick={() =>
-                change(
-                  "policies",
-                  content.policies.filter((p) => p.id !== policy.id),
-                )
-              }
-            >
-              Remove
-            </button>
-          </div>
+        <details className="manager-entry manager-policy-entry" key={policy.id}>
+          <summary className="manager-category-summary"><span>{policy.title || "New policy"}</span></summary>
+          <div className="manager-policy-content">
           <label>
             Policy heading
             <input
@@ -434,7 +524,18 @@ export default function AdminSettings({
               }
             />
           </label>
-        </article>
+            <button type="button"
+              onClick={() =>
+                change(
+                  "policies",
+                  content.policies.filter((p) => p.id !== policy.id),
+                )
+              }
+            >
+              Remove policy
+            </button>
+          </div>
+        </details>
       ))}
       <button
         disabled={content.policies.length >= 20}

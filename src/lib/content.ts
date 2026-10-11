@@ -2,9 +2,11 @@ export type ShopContent = {
   bestSellerIds: string[];
   favicon: string;
   saleEnabled: boolean;
+  adminDesktopOnly: boolean;
   salePercent: number;
   banners: { id: string; image: string; alt: string }[];
-  reviews: { id: string; name: string; text: string; rating: number }[];
+  testimonialIntervalSeconds: number;
+  reviews: { id: string; name: string; text: string; rating: number; dateReviewed?: string }[];
   contactText: string;
   wholesaleText: string;
   logo: string;
@@ -26,18 +28,20 @@ export const defaultContent: ShopContent = {
   bestSellerIds: [],
   favicon: "",
   saleEnabled: false,
+  adminDesktopOnly: true,
   salePercent: 20,
   banners: [],
   reviews: [],
-  contactText: "Have a question about a gift or an order? Send us a message.",
+  testimonialIntervalSeconds: 5,
+  contactText: "Have a question about a product or an order? Send us a message.",
   wholesaleText:
-    "Interested in gifts for your store, team, or event? Tell us what you have in mind.",
+    "Interested in products for your store, team, or event? Tell us what you have in mind.",
   logo: "",
   logoAlt: "GiftsByArtisans",
-  announcement: "A little thought. A meaningful gift.",
+  announcement: "Thoughtfully made. Beautifully crafted.",
   bannerTitle: "For the moments that matter.",
   bannerText:
-    "Discover gifts with a personal touch. Find your favorite, then explore the possibilities of thoughtful giving.",
+    "Discover products with a personal touch. Find your favorite, then explore the possibilities of thoughtful giving.",
   footerText: "Made for thoughtful giving.",
   instagram: "",
   etsy: "",
@@ -46,7 +50,7 @@ export const defaultContent: ShopContent = {
   phone: "",
   address: "",
   categories: [
-    "Personalized gifts",
+    "Personalized products",
     "Home & living",
     "Jewelry",
     "Special occasions",
@@ -76,6 +80,9 @@ export const defaultContent: ShopContent = {
 };
 
 export function validateContent(content: ShopContent) {
+  if (!Number.isInteger(content.testimonialIntervalSeconds) || content.testimonialIntervalSeconds < 0 || content.testimonialIntervalSeconds > 300)
+    throw new Error("Testimonial interval must be a whole number from 0 to 300 seconds.");
+  if (typeof content.adminDesktopOnly !== "boolean") throw new Error("Desktop-only admin setting must be a checkbox value.");
   if (
     !Number.isFinite(content.salePercent) ||
     content.salePercent < 0 ||

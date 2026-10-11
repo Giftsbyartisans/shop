@@ -100,9 +100,9 @@ export function listingPrice(
   saleEnabled: boolean,
   salePercent: number,
 ) {
-  return saleEnabled
-    ? (item.salePrice ?? item.price * (1 - salePercent / 100))
-    : item.price;
+  return item.salePrice ?? (saleEnabled
+    ? item.price * (1 - salePercent / 100)
+    : item.price);
 }
 export function validateListingMedia(item: Listing) {
   if (

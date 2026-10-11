@@ -9,5 +9,5 @@ async function Collection() {
   return <Storefront page="collection" initialContent={initialContent} initialListings={initialListings} />;
 }
 export default function Page() {
-  return <Suspense fallback={<main className="shop collection"><p role="status">Loading gifts…</p></main>}><Collection /></Suspense>;
+  return <Suspense fallback={<main className="shop collection"><p role="status">Loading products…</p></main>}><Collection /></Suspense>;
 }

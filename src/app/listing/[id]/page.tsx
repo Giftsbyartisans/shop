@@ -4,7 +4,7 @@ import Storefront from '@/components/storefront';
 import { mediaCdnUrl, cdnImageUrl, imageSrcSet } from '@/lib/image-delivery';
 import { loadPublicCatalog, loadPublicShopContent } from '@/lib/server-shop-content';
 export default function Page({ params }: { params: Promise<{ id: string }> }) {
-  return <Suspense fallback={<main className="shop collection"><p role="status">Loading gift…</p></main>}><Listing params={params} /></Suspense>;
+  return <Suspense fallback={<main className="shop collection"><p role="status">Loading product…</p></main>}><Listing params={params} /></Suspense>;
 }
 async function Listing({ params }: { params: Promise<{ id: string }> }) {
   if (mediaCdnUrl) preconnect(mediaCdnUrl);

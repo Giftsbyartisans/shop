@@ -367,7 +367,7 @@ export default function ListingEditor({
           </details>
         </section>
         <p className="listing-edit-help">
-          Sale prices apply when the store sale is enabled in website settings.
+          Saved sale prices apply immediately, independently of the storewide sale.
         </p>
         <label>
           Description
@@ -396,16 +396,13 @@ export default function ListingEditor({
           added. Current status: {draft.published ? "Published" : "Draft"}.
         </p>
         <div className="listing-edit-submit">
-          <button type="submit" name="action" value="save">
-            {busy ? "Saving…" : draft.published ? "Save changes" : "Save draft"}
-          </button>
-          <button
-            className="primary"
-            type="submit"
-            name="action"
-            value={draft.published ? "unpublish" : "publish"}
-          >
-            {draft.published ? "Unpublish listing" : "Publish listing"}
+          {draft.published && (
+            <button type="submit" name="action" value="unpublish">
+              Deactivate listing
+            </button>
+          )}
+          <button className="primary" type="submit" name="action" value="publish">
+            {busy ? "Publishing…" : "Publish listing"}
           </button>
         </div>
       </fieldset>
