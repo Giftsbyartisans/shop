@@ -410,7 +410,7 @@ export default function Storefront({
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        View on Pinterest ↗
+                        View on Pinterest
                       </a>
                     )}
                   </div>

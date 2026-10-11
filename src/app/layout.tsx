@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -21,5 +22,23 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className={poppins.variable}><body>{children}</body></html>;
+  return (
+    <html lang="en" className={poppins.variable}>
+      <body>
+        {children}
+        <Script id="google-analytics-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){window.dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-ZYL32KV31H');
+          `}
+        </Script>
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-ZYL32KV31H"
+          strategy="afterInteractive"
+        />
+      </body>
+    </html>
+  );
 }
