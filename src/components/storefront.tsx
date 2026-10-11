@@ -8,10 +8,11 @@ import { defaultContent, type ShopContent } from "@/lib/content";
 import ListingGallery from "./listing-gallery";
 import ShippingPolicy from "./shipping-policy";
 import ProductBenefits from "./product-benefits";
+import PaymentTrust from "./payment-trust";
+import HomepageBenefits from "./homepage-benefits";
 import TestimonialCarousel from "./testimonial-carousel";
 import { policyBody } from "@/lib/policy-text";
 import ShopImage from "./shop-image";
-import { FindUsIcons } from "./shop-frame";
 import { formatPrice, listingPrice, type Listing } from "@/lib/catalog";
 import { listListings, submitInquiry, loadShopContent } from "@/lib/backend";
 
@@ -25,7 +26,7 @@ function ListingPrices({ item, content, detail = false }: { item: Listing; conte
         <strong className={discounted ? "discount-price" : undefined}>{detail && discounted && <span className="listing-price-now">Now </span>}{formatPrice(price)}</strong>
         {discounted && <span className="listing-was"><del>{formatPrice(item.price)}</del> <span className="listing-percent-off">({percentOff}% off)</span></span>}
       </div>
-      <span className="free-delivery">FREE shipping</span>
+      <span className="free-delivery">Free Shipping</span>
     </>
   );
 }
@@ -39,6 +40,9 @@ function Card({ item, content, showcase = false, eager = false }: { item: Listin
       <Link className="listing-media demo-media" href={"/listing/" + item.id}>
         <ShopImage src={photo} alt={item.title} loading={eager ? "eager" : "lazy"}
           sizes={showcase ? "(max-width: 600px) 75vw, (max-width: 850px) 46vw, (max-width: 1100px) 30vw, 19vw" : "(max-width: 900px) 44vw, (max-width: 1440px) 22vw, 320px"} />
+        {Boolean(item.videos?.length) && <span className="product-card-video-tag">
+          Video
+        </span>}
       </Link>
       {photos.length > 1 && (
         <div className="homepage-thumbnails" role="group" aria-label={`Photos of ${item.title}`}>
@@ -54,6 +58,27 @@ function Card({ item, content, showcase = false, eager = false }: { item: Listin
       <ListingPrices item={item} content={content} />
     </article>
   );
+}
+
+function CollectionProductRow({ children, label }: { children: React.ReactNode; label: string }) {
+  const track = useRef<HTMLDivElement>(null);
+  function move(direction: number) {
+    const element = track.current;
+    const card = element?.firstElementChild as HTMLElement | null;
+    if (!element || !card) return;
+    element.scrollBy({ left: direction * (card.getBoundingClientRect().width + 16), behavior: "smooth" });
+  }
+  return <div className="collection-product-carousel" role="region" aria-label={label}>
+    <div className="product-grid collection-product-grid" ref={track}>{children}</div>
+    {Children.count(children) > 1 && <>
+      <button type="button" className="collection-mobile-arrow previous" aria-label={`Previous ${label}`} onClick={() => move(-1)}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
+      </button>
+      <button type="button" className="collection-mobile-arrow next" aria-label={`Next ${label}`} onClick={() => move(1)}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
+      </button>
+    </>}
+  </div>;
 }
 
 function Carousel({
@@ -242,6 +267,7 @@ export default function Storefront({
               ))}
             </Carousel>
           </section>
+          <HomepageBenefits />
           <section id="best-sellers" className="collection">
             <div className="section-top">
               <div>
@@ -258,6 +284,7 @@ export default function Storefront({
                 ))}
             </Carousel>
           </section>
+          <div className="homepage-payment-trust"><PaymentTrust etsyUrl={content.etsy} pinterestUrl={content.pinterest} /></div>
           <section className="testimonials collection">
             <p className="eyebrow">A LITTLE KINDNESS GOES A LONG WAY</p>
             <h2>Thoughtful products. Beautiful moments.</h2>
@@ -287,14 +314,6 @@ export default function Storefront({
               </div>
             )}
           </section>
-          <section className="find-us collection">
-            <p className="eyebrow">LET’S STAY CONNECTED</p>
-            <h2>Find us</h2>
-            <p>
-              Explore more products, inspiration, and updates from GiftsByArtisans.
-            </p>
-            <FindUsIcons content={content} />
-          </section>
         </main>
       ) : page === "collection" ? (
         <main className={`shop${categoryOnly || bestSellersOnly ? ` collection-full-page${categoryOnly ? " collection-category-page" : ""}` : ""}`}>
@@ -302,6 +321,9 @@ export default function Storefront({
             <p className="eyebrow">CURATED WITH CARE</p>
             <div className="collection-heading-row">
             <h1 className="catalog-heading">{bestSellersOnly ? "Best sellers" : categoryOnly || "Collections"}</h1>
+              <p className="collection-product-count" role="status">
+                {categoryOnly ? filtered.length : category || query ? `${filtered.length} of ${visible.length}` : visible.length} {(categoryOnly ? filtered.length : visible.length) === 1 ? "product" : "products"}
+              </p>
             <div className="collection-toolbar">
               <div className="catalog-filters collection-toolbar-filters">
               {!categoryOnly && (
@@ -327,25 +349,23 @@ export default function Storefront({
                 </select>
               </label>
               </div>
-              <p className="collection-product-count" role="status">
-                {categoryOnly ? filtered.length : category || query ? `${filtered.length} of ${visible.length}` : visible.length} {(categoryOnly ? filtered.length : visible.length) === 1 ? "product" : "products"}
-              </p>
+
             </div>
             </div>
             {!ready ? <ShopSkeleton /> : filtered.length ? bestSellersOnly ? (
-              <div className="product-grid collection-product-grid best-seller-product-grid">
+              <CollectionProductRow label="best sellers">
                 {pageProducts.map((listing, index) => <Card key={listing.id} item={listing} content={content} eager={index < 3} />)}
-              </div>
+              </CollectionProductRow>
             ) : (
               <div className="collection-category-groups">
                 {orderedCategoryGroups.map(([name, listings], groupIndex) => {
                   const heading = <h2>{name}</h2>;
                   const products = <>
-                    <div className="product-grid collection-product-grid">
+                    <CollectionProductRow label={`${name} products`}>
                       {(categoryOnly ? pageProducts : listings.slice(0, category ? 10 : 5)).map((listing, index) => (
                         <Card content={content} key={listing.id} item={listing} eager={groupIndex === 0 && index < 3} />
                       ))}
-                    </div>
+                    </CollectionProductRow>
                   </>;
                   return (
                     <section className="collection-category-section" key={name}>
@@ -358,6 +378,13 @@ export default function Storefront({
                         )}
                       </div>}
                       {products}
+                      {!categoryOnly && category && listings.length > 10 && (
+                        <div className="collection-view-all-bottom">
+                          <Link href={`/collection/${encodeURIComponent(name)}`}>
+                            View all ({listings.length}) products
+                          </Link>
+                        </div>
+                      )}
                     </section>
                   );
                 })}
@@ -396,7 +423,9 @@ export default function Storefront({
         </main>
       ) : page === "listing" ? (
         <main className="shop listing-detail">
-          <Link className="listing-back-link" href="/collection">← Collections</Link>
+          <Link className="listing-back-link" href={item?.category ? `/collection/${encodeURIComponent(item.category)}` : "/collection"}>
+            ← {item?.category || "Collections"}
+          </Link>
           {!ready ? (
             <ShopSkeleton variant="product" />
           ) : item ? (
@@ -410,7 +439,7 @@ export default function Storefront({
                 </div>
                 <p className="listing-maker">Handmade by GiftsByArtisans</p>
                 <div className="listing-mobile-facts">
-                  <span className="free-delivery">FREE shipping</span>
+                  <span className="free-delivery">Free Shipping</span>
                   {content.reviews.length > 0 && <div>
                     <span>Testimonials</span>
                     <a href="#listing-testimonials">{content.reviews.length} customer {content.reviews.length === 1 ? "story" : "stories"}</a>

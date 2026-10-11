@@ -9,7 +9,7 @@ export function ShopHeader({ content }: { content: ShopContent }) {
       {content.announcement && (
         <div className="announcement">{content.announcement}</div>
       )}
-      <header>
+      <header className="shop-header">
         <Brand content={content} />
         <nav>
           <Link href="/#categories">Categories</Link>
@@ -20,8 +20,13 @@ export function ShopHeader({ content }: { content: ShopContent }) {
         <form action="/collection" className="shop-search" role="search">
           <input
             id="shop-search"
-            type="search"
+            type="text"
+            role="searchbox"
             name="q"
+            aria-label="Search products"
+            enterKeyHint="search"
+            autoCorrect="off"
+            autoCapitalize="none"
             placeholder="Search Products"
             maxLength={150}
           />
@@ -68,6 +73,7 @@ export function ShopFooter({ content }: { content: ShopContent }) {
           <Link href="/#categories">Shop by category</Link>
           <Link href="/best-sellers">Best sellers</Link>
           <Link href="/wholesale">Wholesale inquiry</Link>
+          <a href="/sitemap">Sitemap</a>
         </div>
         <div>
           <h3>Customer care</h3>
@@ -79,7 +85,7 @@ export function ShopFooter({ content }: { content: ShopContent }) {
             </Link>
           ))}
         </div>
-        <div>
+        <div className="footer-contact">
           <h3>Get in touch</h3>
           {content.contactEmail && (
             <Link href={"mailto:" + content.contactEmail}>

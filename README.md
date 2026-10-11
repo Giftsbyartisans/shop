@@ -95,7 +95,7 @@ CSV/JSON imports copy photos hosted on `i.etsystatic.com` and `img0`–`img4.ets
 
 Reimports with the same listing ID and photo URL reuse an existing S3 copy. Include `listing_id` or `id` in the import to preserve this identity; files without IDs generate new listings. Failed photo copies leave the affected imported listings as drafts and show the error so you can retry. Successfully copied photos are retained. Uploads require a browser supporting WebP canvas and image decoding, as with regular uploads. Deploy the new `/api/import-image` route before testing this on the hosted site.
 
-Saved listing sale prices display independently of the storewide sale switch. The storewide percentage applies to listings without a saved sale price. Discounted listings show their original price and percentage off on cards and product pages; all listings display a FREE shipping tag.
+Saved listing sale prices display independently of the storewide sale switch. The storewide percentage applies to listings without a saved sale price. Discounted listings show their original price and percentage off on cards and product pages; all listings display a Free Shipping tag.
 
 Removing or replacing saved category images, banners, logos, or favicons cleans up their unused S3 upload folders when website changes are saved. Files referenced by another listing or website field are preserved. Cleanup failures stop the save so it can be retried. Removing unsaved uploads does not trigger this saved-record cleanup.
 
