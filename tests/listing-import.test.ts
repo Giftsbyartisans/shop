@@ -89,7 +89,7 @@ test("an invalid first listing is rejected before importing", () => {
   assert.throws(() => parseCSV('TITLE\n"unclosed'), /unclosed/);
 });
 
-test("only the first listing is imported", () => {
+test("all listings are imported with no listing-count limit", () => {
   const records = Array.from({ length: 15 }, (_, i) => ({
     id: String(i),
     title: `Gift ${i}`,
@@ -97,6 +97,6 @@ test("only the first listing is imported", () => {
     price: 10,
   }));
   const imported = importListings(JSON.stringify(records), "catalog.json");
-  assert.equal(imported.length, 1);
-  assert.equal(imported[0].id, "0");
+  assert.equal(imported.length, records.length);
+  assert.equal(imported.at(-1)?.id, "14");
 });

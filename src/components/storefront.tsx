@@ -77,7 +77,7 @@ function Carousel({
     const target = direction > 0
       ? positions.find(position => position > current + 2) ?? 0
       : [...positions].reverse().find(position => position < current - 2) ?? maxScroll;
-    element.scrollTo({ left: target, behavior: "auto" });
+    element.scrollTo({ left: target, behavior: "smooth" });
   };
   const carouselEnabled = Children.count(children) > 5;
   return (

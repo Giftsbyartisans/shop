@@ -34,7 +34,7 @@ export default function ListingGallery({ item }: { item: Listing }) {
     if (track && button)
       track.scrollTo({
         left: button.offsetLeft - track.offsetLeft,
-        behavior: "auto",
+        behavior: "smooth",
       });
   };
   return (
