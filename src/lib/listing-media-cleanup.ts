@@ -1,5 +1,4 @@
-// UUID folders are created exclusively for one uploaded image and its variants.
-const imageFolder = /^media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\//i;
+import { mediaAssetKey } from "./media-paths";
 
 function mediaPath(value: string): string | undefined {
   if (!value.startsWith('s3:media/')) return undefined;
@@ -8,7 +7,7 @@ function mediaPath(value: string): string | undefined {
   return path;
 }
 function assetKey(path: string): string {
-  return path.match(imageFolder)?.[0] ?? path;
+  return mediaAssetKey(path);
 }
 export function mediaReferences(value: unknown): string[] {
   if (typeof value === 'string') {

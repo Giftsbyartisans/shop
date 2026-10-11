@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
+import { Children, useEffect, useState, useRef } from "react";
 import { ShopHeader, ShopFooter } from "./shop-frame";
 import { defaultContent, type ShopContent } from "@/lib/content";
 import ListingGallery from "./listing-gallery";
@@ -53,21 +53,24 @@ function Carousel({
   label: string;
 }) {
   const track = useRef<HTMLDivElement>(null);
-  const [canPrevious, setCanPrevious] = useState(false);
-  const [canNext, setCanNext] = useState(false);
-  useEffect(() => {
+  const scrollCards = (direction: number) => {
     const element = track.current;
     if (!element) return;
-    const update = () => {
-      setCanPrevious(element.scrollLeft > 2);
-      setCanNext(element.scrollLeft + element.clientWidth < element.scrollWidth - 2);
-    };
-    update();
-    element.addEventListener("scroll", update, { passive: true });
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => { element.removeEventListener("scroll", update); observer.disconnect(); };
-  }, [children]);
+    const cards = Array.from(element.children) as HTMLElement[];
+    if (cards.length < 2) return;
+    const maxScroll = element.scrollWidth - element.clientWidth;
+    if (maxScroll <= 2) return;
+    const current = element.scrollLeft;
+    const viewportLeft = element.getBoundingClientRect().left;
+    const positions = cards.map(card => Math.min(maxScroll,
+      card.getBoundingClientRect().left - viewportLeft + current));
+    const target = direction > 0
+      ? positions.find(position => position > current + 2) ?? 0
+      : [...positions].reverse().find(position => position < current - 2) ?? maxScroll;
+    // Exact card coordinates and immediate scrolling avoid mobile smooth-scroll/snap conflicts.
+    element.scrollLeft = target;
+  };
+  const hasMultipleCards = Children.count(children) > 1;
   return (
     <div className="demo-carousel" role="region" aria-label={label}>
       <div className="demo-track" ref={track}>
@@ -77,28 +80,18 @@ function Carousel({
         <button
           className="homepage-carousel-arrow previous"
           type="button"
-          disabled={!canPrevious}
+          disabled={!hasMultipleCards}
           aria-label={"Previous " + label}
-          onClick={() =>
-            track.current?.scrollBy({
-              left: -track.current.clientWidth,
-              behavior: "smooth",
-            })
-          }
+          onClick={() => scrollCards(-1)}
         >
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
         </button>
         <button
           className="homepage-carousel-arrow next"
           type="button"
-          disabled={!canNext}
+          disabled={!hasMultipleCards}
           aria-label={"Next " + label}
-          onClick={() =>
-            track.current?.scrollBy({
-              left: track.current.clientWidth,
-              behavior: "smooth",
-            })
-          }
+          onClick={() => scrollCards(1)}
         >
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
         </button>
@@ -523,6 +516,7 @@ function InquiryForm({ kind }: { kind: "contact" | "wholesale" }) {
 }
 
 function StoreBanner({ content }: { content: ShopContent }) {
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const [index, setIndex] = useState(0);
   const uploaded = content.banners.filter((b) => b.image.trim());
   const banners = uploaded.length
@@ -550,6 +544,21 @@ function StoreBanner({ content }: { content: ShopContent }) {
       >
         <div
           className="store-hero-slide"
+          onTouchStart={event => {
+            const touch = event.touches[0];
+            touchStart.current = event.touches.length === 1 ? { x: touch.clientX, y: touch.clientY } : null;
+          }}
+          onTouchCancel={() => { touchStart.current = null; }}
+          onTouchEnd={event => {
+            const start = touchStart.current;
+            touchStart.current = null;
+            const touch = event.changedTouches[0];
+            if (!start || !touch || !multiple) return;
+            const dx = touch.clientX - start.x;
+            const dy = touch.clientY - start.y;
+            if (Math.abs(dx) < 40 || Math.abs(dx) <= Math.abs(dy)) return;
+            setIndex((active + (dx < 0 ? 1 : banners.length - 1)) % banners.length);
+          }}
           role={multiple ? "group" : undefined}
           aria-roledescription={multiple ? "slide" : undefined}
           aria-label={multiple ? `${active + 1} of ${banners.length}` : undefined}
@@ -593,7 +602,6 @@ function StoreBanner({ content }: { content: ShopContent }) {
             >
               <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
             </button>
-            <span className="sr-only" aria-live="polite">Banner {active + 1} of {banners.length}</span>
           </>
         )}
       </div>

@@ -1,7 +1,16 @@
 import type { NextConfig } from "next";
+import { hostname, networkInterfaces } from "node:os";
 import outputs from "./amplify_outputs.json";
 
+// Permit this machine's exact LAN hosts when testing from a phone.
+const localDevHosts = Array.from(new Set([
+  hostname(),
+  ...Object.values(networkInterfaces()).flatMap(addresses =>
+    (addresses ?? []).filter(address => !address.internal && address.family === "IPv4").map(address => address.address),
+  ),
+]));
 const nextConfig: NextConfig = {
+  allowedDevOrigins: localDevHosts,
   images: {
     remotePatterns: [
       {

@@ -1,16 +1,19 @@
 "use client";
 import type { ShopContent } from "@/lib/content";
 import ShopImage, { uploadImage } from "./shop-image";
+import type { MediaUploadContext } from "@/lib/media-paths";
 import { useState } from "react";
 
 export function ImageField({
   label,
+  uploadContext,
   value,
   onChange,
   onBusy,
   onError,
 }: {
   label: string;
+  uploadContext?: MediaUploadContext;
   value: string;
   onChange: (value: string) => void;
   onBusy: (busy: boolean) => void;
@@ -39,7 +42,7 @@ export function ImageField({
             setUploading(true);
             onBusy(true);
             try {
-              onChange(await uploadImage(file));
+              onChange(await uploadImage(file, uploadContext));
             } catch (error) {
               onError(
                 error instanceof Error ? error.message : "Upload failed.",
@@ -81,7 +84,8 @@ export default function AdminSettings({
     label: string,
     value: string,
     onChange: (value: string) => void,
-  ) => <ImageField {...{ label, value, onChange, onBusy, onError }} />;
+    uploadContext: MediaUploadContext,
+  ) => <ImageField {...{ label, value, onChange, onBusy, onError, uploadContext }} />;
   const field = (key: keyof ShopContent, label: string, multiline = false) => (
     <label>
       {label}
@@ -108,7 +112,7 @@ export default function AdminSettings({
           One announcement bar is shown. Leave the text empty to hide it.
           Include sale messages here when needed.
         </p>
-        {image("Brand logo", content.logo, (value) => change("logo", value))}
+        {image("Brand logo", content.logo, (value) => change("logo", value), { kind: "logos", name: content.logoAlt || "brand-logo" })}
         {field("logoAlt", "Logo description")}
         <button onClick={() => change("logo", "")}>
           Use text brand instead
@@ -118,7 +122,7 @@ export default function AdminSettings({
           Choose the browser-tab icon. A square PNG (32 × 32 or 48 × 48 pixels)
           works best. Upload an image or enter an HTTPS image URL.
         </p>
-        {image("Favicon", content.favicon, (value) => change("favicon", value))}
+        {image("Favicon", content.favicon, (value) => change("favicon", value), { kind: "favicons", name: "website-icon" })}
         <button onClick={() => change("favicon", "")}>
           Reset favicon to default
         </button>
@@ -151,6 +155,7 @@ export default function AdminSettings({
                   b.id === banner.id ? { ...b, image: value } : b,
                 ),
               ),
+              { kind: "banners", name: banner.alt || `banner-${index + 1}`, entityId: banner.id },
             )}
             <label>
               Image description
@@ -234,6 +239,7 @@ export default function AdminSettings({
                   c.id === category.id ? { ...c, image: value } : c,
                 ),
               ),
+              { kind: "categories", name: category.name, entityId: category.id },
             )}
           </article>
         ))}

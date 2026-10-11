@@ -218,6 +218,28 @@ export async function saveShopContent(content: ShopContent) {
     adminAuth,
   );
   check(existing);
+  if (existing.data) {
+    const raw = typeof existing.data.content === "string"
+      ? JSON.parse(existing.data.content) : existing.data.content;
+    const previous = { ...structuredClone(defaultContent), ...raw } as ShopContent;
+    const currentImages = new Set(content.banners.map(banner => banner.image));
+    const removedImages = previous.banners.map(banner => banner.image)
+      .filter(image => image.startsWith("s3:media/") && !currentImages.has(image));
+    if (removedImages.length) {
+      const [drafts, published] = await Promise.all([listListings(true), listListings()]);
+      try {
+        await cleanupListingMedia(removedImages, [content, drafts, published], {
+          list: async prefix => {
+            const result = await list({ path: prefix, options: { listAll: true } });
+            return result.items.map(item => item.path);
+          },
+          remove: async path => { await remove({ path }); },
+        });
+      } catch {
+        throw new Error("Banner cleanup failed. Website settings were kept so you can save again to retry. Some files may already have been removed.");
+      }
+    }
+  }
   const input = { id: "website", content: JSON.stringify(content) };
   if (existing.data)
     check(await client.models.ShopSettings.update(input, adminAuth));

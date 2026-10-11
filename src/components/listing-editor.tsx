@@ -6,6 +6,7 @@ import type { Listing } from "@/lib/catalog";
 import type { ShopContent } from "@/lib/content";
 import ShopImage, { uploadImage } from "./shop-image";
 import ShopVideo from "./shop-video";
+import { mediaUploadPrefix } from "@/lib/media-paths";
 import ManagerIcon from "./manager-icon";
 
 type Props = {
@@ -79,14 +80,15 @@ export default function ListingEditor({
         const file = inputFiles[index];
         let path: string;
         if (video) {
-          const storagePath = `media/${crypto.randomUUID()}.${file.type === "video/mp4" ? "mp4" : "webm"}`;
+          const prefix = mediaUploadPrefix({ kind: "listing-videos", name: draft.title, entityId: draft.id }, file.name, crypto.randomUUID());
+          const storagePath = `${prefix}/original.${file.type === "video/mp4" ? "mp4" : "webm"}`;
           await uploadData({
             path: storagePath,
             data: file,
-            options: { contentType: file.type },
+            options: { contentType: file.type, cacheControl: "public, max-age=31536000, immutable" },
           }).result;
           path = `s3:${storagePath}`;
-        } else path = await uploadImage(file);
+        } else path = await uploadImage(file, { kind: "listing-images", name: draft.title, entityId: draft.id });
         setDraft((previous) =>
           video
             ? { ...previous, videos: [...(previous.videos ?? []), path] }

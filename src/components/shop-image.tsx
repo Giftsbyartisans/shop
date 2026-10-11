@@ -4,6 +4,8 @@ import Image from "next/image";
 import { getUrl, uploadData, remove } from "aws-amplify/storage";
 import { cdnImageUrl, cdnImageVariantUrl, imageSrcSet, IMAGE_WIDTHS } from "@/lib/image-delivery";
 
+import { mediaUploadPrefix, type MediaUploadContext } from "@/lib/media-paths";
+
 const signedUrls = new Map<string, { url: string; expiresAt: number }>();
 const pendingUrls = new Map<string, Promise<string>>();
 export async function imageUrl(value: string, width = 1600): Promise<string> {
@@ -29,7 +31,7 @@ export async function imageUrl(value: string, width = 1600): Promise<string> {
   pendingUrls.set(value, request);
   return request;
 }
-export async function uploadImage(file: File) {
+export async function uploadImage(file: File, context: MediaUploadContext = { kind: "images", name: "general" }) {
   if (
     !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
     file.size > 8 * 1024 * 1024
@@ -40,7 +42,7 @@ export async function uploadImage(file: File) {
     bitmap.close();
     throw new Error("Choose an image up to 40 megapixels with a height no more than 10 times its width.");
   }
-  const prefix = `media/${crypto.randomUUID()}`;
+  const prefix = mediaUploadPrefix(context, file.name, crypto.randomUUID());
   const uploaded: string[] = [];
   try {
     // Prepare every variant before writing anything; unsupported WebP fails cleanly.

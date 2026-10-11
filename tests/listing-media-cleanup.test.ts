@@ -37,3 +37,20 @@ test('folder listing cannot cause deletion outside the owned folder', async () =
   });
   assert.deepEqual(removed, [folder + 'original.png']);
 });
+
+test('removed banners delete original and variants while retained logo and listing assets are protected', async () => {
+  const other = 'media/87654321-4321-4321-4321-cba987654321/';
+  const deleted: string[] = [];
+  await cleanupListingMedia([`s3:${folder}1600.webp`, `s3:${other}1600.webp`, 's3:media/category.jpg'], [
+    { logo: `s3:${other}320.webp`, categories: [{ image: 's3:media/category.jpg' }] },
+    { images: [`s3:${other}960.webp`] },
+  ], {
+    list: async prefix => {
+      assert.equal(prefix, folder);
+      return ['original.jpg', '320.webp', '640.webp', '960.webp', '1600.webp'].map(name => prefix + name);
+    },
+    remove: async path => { deleted.push(path); },
+  });
+  assert.equal(deleted.length, 5);
+  assert.ok(deleted.every(path => path.startsWith(folder)));
+});
