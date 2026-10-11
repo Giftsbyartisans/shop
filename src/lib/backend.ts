@@ -184,7 +184,13 @@ export type Inquiry = {
   business?: string | null;
   quantity?: number | null;
   createdAt: string;
+  readAt?: string | null;
 };
+export async function markInquiryRead(id: string) {
+  const readAt = new Date().toISOString();
+  check(await client.models.Inquiry.update({ id, readAt }, adminAuth));
+  return readAt;
+}
 export async function listInquiries() {
   const items: Inquiry[] = [];
   let nextToken: string | null | undefined;

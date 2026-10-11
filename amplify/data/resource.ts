@@ -38,11 +38,12 @@ const schema = a.schema({
       message: a.string().required(),
       business: a.string(),
       quantity: a.integer(),
+      readAt: a.datetime(),
     })
     .authorization((allow) => [
       allow.guest().to(["create"]),
       allow.authenticated().to(["create"]),
-      allow.groups(["Admins"]).to(["read", "delete"]),
+      allow.groups(["Admins"]).to(["read", "update", "delete"]),
     ]),
 });
 export type Schema = ClientSchema<typeof schema>;

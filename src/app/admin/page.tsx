@@ -13,13 +13,14 @@ import {
   type Inquiry,
   loadShopContent,
   saveShopContent,
-  deleteInquiry,
+  markInquiryRead,
 } from "@/lib/backend";
 import AdminSettings from "@/components/admin-settings";
 import ReviewTransfer from "@/components/review-transfer";
 import ManagerIcon from "@/components/manager-icon";
 import ListingEditor from "@/components/listing-editor";
 import AdminListings from "@/components/admin-listings";
+import AdminMessages from "@/components/admin-messages";
 import { signIn, signOut, confirmSignIn } from "aws-amplify/auth";
 export default function Admin() {
   const [items, setItems] = useState<Listing[]>([]),
@@ -40,6 +41,26 @@ export default function Admin() {
     completed: number;
     total: number;
   } | null>(null);
+  const readingMessages = useRef(new Set<string>());
+  const unreadCount = inquiries.filter(inquiry => !inquiry.readAt).length;
+  async function readMessage(inquiry: Inquiry) {
+    if (inquiry.readAt || readingMessages.current.has(inquiry.id)) return;
+    readingMessages.current.add(inquiry.id);
+    try {
+      const readAt = await markInquiryRead(inquiry.id);
+      setInquiries(current => current.map(item => item.id === inquiry.id ? { ...item, readAt } : item));
+    } catch (error) { setStatus(error instanceof Error ? error.message : "Could not mark message as read."); }
+    finally { readingMessages.current.delete(inquiry.id); }
+  }
+  useEffect(() => {
+    if (!authorized) return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      if (document.hidden || readingMessages.current.size) return;
+      void listInquiries().then(messages => { if (active) setInquiries(messages); }).catch(() => {});
+    }, 30000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [authorized]);
   const [editorOnly, setEditorOnly] = useState(false);
   const [categoryEditing, setCategoryEditing] = useState(false);
   const openedListing = useRef(false);
@@ -426,6 +447,7 @@ export default function Admin() {
             >
               <ManagerIcon name={name} />
               <span>{name}</span>
+              {name === "Messages" && unreadCount > 0 && <span className="manager-unread-count" aria-label={`${unreadCount} unread messages`}>{unreadCount}</span>}
             </button>
           ))}
           <details className="manager-settings-group">
@@ -521,73 +543,7 @@ export default function Admin() {
             <ReviewTransfer reviews={content.reviews} onChange={reviews => change("reviews", reviews)} />
             </>
           ) : tab === "Messages" ? (
-            <>
-              <div className="manager-entry-heading">
-                <p className="manager-help">
-                  Contact and wholesale inquiries. Reply using the customer’s
-                  email address.
-                </p>
-                <button
-                  onClick={async () => {
-                    setBusy(true);
-                    try {
-                      setInquiries(await listInquiries());
-                      setStatus("Messages refreshed.");
-                    } catch (e) {
-                      setStatus(
-                        e instanceof Error ? e.message : "Refresh failed.",
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                >
-                  Refresh
-                </button>
-              </div>
-              {inquiries.length ? (
-                inquiries.map((i) => (
-                  <article className="manager-entry" key={i.id}>
-                    <div className="manager-entry-heading">
-                      <h3>{i.name}</h3>
-                      <span className="badge">{i.kind}</span>
-                    </div>
-                    <a href={"mailto:" + i.email}>{i.email}</a>
-                    {i.business && (
-                      <p>
-                        {i.business} · {i.quantity || "Quantity not specified"}
-                      </p>
-                    )}
-                    <p className="pre-wrap">{i.message}</p>
-                    <small>{new Date(i.createdAt).toLocaleString()}</small>
-                    <div>
-                      <button
-                        onClick={async () => {
-                          setBusy(true);
-                          try {
-                            await deleteInquiry(i.id);
-                            setInquiries((current) =>
-                              current.filter((x) => x.id !== i.id),
-                            );
-                            setStatus("Message deleted.");
-                          } catch (e) {
-                            setStatus(
-                              e instanceof Error ? e.message : "Delete failed.",
-                            );
-                          } finally {
-                            setBusy(false);
-                          }
-                        }}
-                      >
-                        Delete message
-                      </button>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <p className="manager-help">No inquiries yet.</p>
-              )}
-            </>
+            <AdminMessages messages={inquiries} onRead={readMessage} />
           ) : contentReady ? (
             <AdminSettings
               {...{ tab, content, change, categoryEditing }}
