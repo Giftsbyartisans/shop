@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import ShopSkeleton from "./shop-skeleton";
 import { useRouter } from "next/navigation";
 import { Children, useEffect, useState, useRef } from "react";
 import { ShopHeader, ShopFooter } from "./shop-frame";
@@ -36,10 +37,10 @@ function Card({ item, content, showcase = false, eager = false }: { item: Listin
   return (
     <article className={`listing-card${showcase ? " homepage-listing" : ""}`}>
       <Link className="listing-media demo-media" href={"/listing/" + item.id}>
-        <ShopImage src={showcase ? photo : item.image} alt={item.title} loading={eager ? "eager" : "lazy"}
-          sizes={showcase ? "(max-width: 600px) 75vw, (max-width: 850px) 46vw, (max-width: 1100px) 30vw, 19vw" : "(max-width: 600px) 90vw, (max-width: 850px) 46vw, 30vw"} />
+        <ShopImage src={photo} alt={item.title} loading={eager ? "eager" : "lazy"}
+          sizes={showcase ? "(max-width: 600px) 75vw, (max-width: 850px) 46vw, (max-width: 1100px) 30vw, 19vw" : "(max-width: 900px) 44vw, (max-width: 1440px) 22vw, 320px"} />
       </Link>
-      {showcase && photos.length > 1 && (
+      {photos.length > 1 && (
         <div className="homepage-thumbnails" role="group" aria-label={`Photos of ${item.title}`}>
           {photos.map((image, index) => (
             <button key={image} type="button" aria-label={`Show photo ${index + 1} of ${item.title}`}
@@ -123,6 +124,7 @@ export default function Storefront({
   bestSellersOnly?: boolean;
 }) {
   const router = useRouter();
+  const [pagination, setPagination] = useState({ key: "", page: 1 });
   const [content, setContent] = useState(initialContent ?? defaultContent);
   const [settingsStatus, setSettingsStatus] = useState<"loading" | "ready" | "failed">(initialContent ? "ready" : "loading");
   const [items, setItems] = useState<Listing[]>(initialListings ?? []),
@@ -193,6 +195,15 @@ export default function Storefront({
           ? b.price - a.price
           : 0,
     );
+  const paginationKey = JSON.stringify([categoryOnly, bestSellersOnly, category, query, sort]);
+  const pageSize = categoryOnly ? 15 : 16;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(pagination.key === paginationKey ? pagination.page : 1, pageCount);
+  const pageProducts = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  function changeProductPage(next: number) {
+    setPagination({ key: paginationKey, page: next });
+    document.querySelector(".catalog-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   const categoryGroups = new Map<string, Listing[]>();
   for (const listing of filtered) {
     const group = categoryGroups.get(listing.category) ?? [];
@@ -211,7 +222,7 @@ export default function Storefront({
           {settingsStatus === "ready" ? (
             <StoreBanner content={content} />
           ) : (
-            <div className="store-hero-placeholder" role="status" aria-busy={settingsStatus === "loading"}>
+            <div className={`store-hero-placeholder${settingsStatus === "loading" ? " shimmer" : ""}`} role="status" aria-busy={settingsStatus === "loading"}>
               {settingsStatus === "loading" ? <span className="sr-only">Loading banner</span> : <p>Unable to load the banner. Please refresh the page.</p>}
             </div>
           )}
@@ -286,9 +297,10 @@ export default function Storefront({
           </section>
         </main>
       ) : page === "collection" ? (
-        <main className="shop">
+        <main className={`shop${categoryOnly || bestSellersOnly ? ` collection-full-page${categoryOnly ? " collection-category-page" : ""}` : ""}`}>
           <section className="collection">
             <p className="eyebrow">CURATED WITH CARE</p>
+            <div className="collection-heading-row">
             <h1 className="catalog-heading">{bestSellersOnly ? "Best sellers" : categoryOnly || "Collections"}</h1>
             <div className="collection-toolbar">
               <div className="catalog-filters collection-toolbar-filters">
@@ -319,37 +331,34 @@ export default function Storefront({
                 {categoryOnly ? filtered.length : category || query ? `${filtered.length} of ${visible.length}` : visible.length} {(categoryOnly ? filtered.length : visible.length) === 1 ? "product" : "products"}
               </p>
             </div>
-            {filtered.length ? bestSellersOnly ? (
-              <div className="product-grid collection-product-grid">
-                {filtered.map((listing, index) => <Card key={listing.id} item={listing} content={content} eager={index < 3} />)}
+            </div>
+            {!ready ? <ShopSkeleton /> : filtered.length ? bestSellersOnly ? (
+              <div className="product-grid collection-product-grid best-seller-product-grid">
+                {pageProducts.map((listing, index) => <Card key={listing.id} item={listing} content={content} eager={index < 3} />)}
               </div>
             ) : (
               <div className="collection-category-groups">
                 {orderedCategoryGroups.map(([name, listings], groupIndex) => {
-                  const expanded = Boolean(categoryOnly || category);
-                  const heading = <><h2>{name}</h2><span className="collection-category-count">{listings.length} products</span></>;
+                  const heading = <h2>{name}</h2>;
                   const products = <>
                     <div className="product-grid collection-product-grid">
-                      {(categoryOnly ? listings : listings.slice(0, 5)).map((listing, index) => (
+                      {(categoryOnly ? pageProducts : listings.slice(0, category ? 10 : 5)).map((listing, index) => (
                         <Card content={content} key={listing.id} item={listing} eager={groupIndex === 0 && index < 3} />
                       ))}
                     </div>
-                    {!categoryOnly && listings.length > 5 && (
-                      <Link className="category-view-all collection-view-all" href={`/collection/${encodeURIComponent(name)}`}>
-                        View all collection →
-                      </Link>
-                    )}
                   </>;
-                  return expanded ? (
+                  return (
                     <section className="collection-category-section" key={name}>
-                      <div className="collection-category-heading collection-category-static">{heading}</div>
+                      {!categoryOnly && <div className="collection-category-heading collection-category-static">
+                        {heading}
+                        {!categoryOnly && listings.length > (category ? 10 : 5) && (
+                          <Link className="category-view-all collection-view-all" href={`/collection/${encodeURIComponent(name)}`}>
+                            View all ({listings.length}) products
+                          </Link>
+                        )}
+                      </div>}
                       {products}
                     </section>
-                  ) : (
-                    <details className="collection-category-section" key={name} open>
-                      <summary className="collection-category-heading">{heading}</summary>
-                      {products}
-                    </details>
                   );
                 })}
               </div>
@@ -367,13 +376,29 @@ export default function Storefront({
                 </button>
               </div>
             )}
+            {(categoryOnly || bestSellersOnly) && pageCount > 1 && (
+              <nav className="collection-pagination" aria-label="Product pagination">
+                <button type="button" aria-label="Previous page" disabled={currentPage === 1} onClick={() => changeProductPage(currentPage - 1)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg>
+                </button>
+                {Array.from({ length: Math.min(5, pageCount) }, (_, index) => {
+                  const start = Math.max(1, Math.min(currentPage - 2, pageCount - 4));
+                  const number = start + index;
+                  return <button key={number} type="button" aria-label={`Page ${number}`} aria-current={currentPage === number ? "page" : undefined}
+                    onClick={() => changeProductPage(number)}>{number}</button>;
+                })}
+                <button type="button" aria-label="Next page" disabled={currentPage === pageCount} onClick={() => changeProductPage(currentPage + 1)}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
+                </button>
+              </nav>
+            )}
           </section>
         </main>
       ) : page === "listing" ? (
         <main className="shop listing-detail">
           <Link className="listing-back-link" href="/collection">← Collections</Link>
           {!ready ? (
-            <p role="status">Loading product…</p>
+            <ShopSkeleton variant="product" />
           ) : item ? (
             <div className="listing-detail-grid">
               <ListingGallery item={item} />
@@ -400,7 +425,7 @@ export default function Storefront({
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        Shop on Etsy
+                        Buy From Etsy
                       </a>
                     )}
                     {item.pinterestUrl && (
@@ -414,7 +439,7 @@ export default function Storefront({
                     )}
                   </div>
                 )}
-                <details className="product-description" open>
+                <details className="product-description listing-first-description" open>
                   <summary>Description</summary>
                   <p className="description">{item.description}</p>
                 </details>

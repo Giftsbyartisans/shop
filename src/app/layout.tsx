@@ -3,16 +3,12 @@ import Script from "next/script";
 import localFont from "next/font/local";
 import "./globals.css";
 
-const poppins = localFont({
-  src: [
-    { path: "./fonts/Poppins-Regular.ttf", weight: "400", style: "normal" },
-    { path: "./fonts/Poppins-Medium.ttf", weight: "500", style: "normal" },
-    { path: "./fonts/Poppins-SemiBold.ttf", weight: "600", style: "normal" },
-    { path: "./fonts/Poppins-Bold.ttf", weight: "700", style: "normal" },
-    { path: "./fonts/Poppins-Italic.ttf", weight: "400", style: "italic" },
-  ],
+const googleSansFlex = localFont({
+  src: "./fonts/GoogleSansFlex.ttf",
+  weight: "100 1000",
+  style: "normal",
   display: "swap",
-  variable: "--font-poppins",
+  variable: "--font-google-sans-flex",
 });
 
 export const metadata: Metadata = {
@@ -23,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={poppins.variable}>
+    <html lang="en" className={googleSansFlex.variable}>
       <body>
         {children}
         <Script id="google-analytics-init" strategy="afterInteractive">

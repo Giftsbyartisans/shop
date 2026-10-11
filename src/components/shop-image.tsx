@@ -92,6 +92,7 @@ export default function ShopImage({
   src?: string;
   optimized?: boolean;
 }) {
+  const [settledSource, setSettledSource] = useState("");
   const [resolved, setResolved] = useState<{
     source: string;
     url: string;
@@ -127,6 +128,9 @@ export default function ShopImage({
   // Variants are prepared at upload time; native srcset avoids a second optimizer.
   // eslint-disable-next-line @next/next/no-img-element
   return <img loading="lazy" decoding="async" {...props} src={url}
+    className={[props.className, src && settledSource !== src ? "image-shimmer" : ""].filter(Boolean).join(" ")}
+    onLoad={event => { setSettledSource(src); props.onLoad?.(event); }}
+    onError={event => { setSettledSource(src); props.onError?.(event); }}
     srcSet={responsive ?? props.srcSet}
     sizes={props.sizes ?? (responsive ? "(max-width: 600px) 50vw, (max-width: 1024px) 33vw, 25vw" : undefined)}
     alt={alt} />;

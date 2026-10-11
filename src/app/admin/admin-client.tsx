@@ -182,7 +182,9 @@ export default function AdminClient() {
       channel.close();
       if (editorOnly) {
         setStatus("Changes saved. You can close this tab.");
-        window.close();
+        window.history.replaceState(null, "", "/admin");
+        setEditorOnly(false);
+        setEditing(null);
       } else {
         setEditing(null);
         setStatus("Saved to the backend.");
@@ -344,13 +346,15 @@ export default function AdminClient() {
     <ListingEditor
       key={editing.id}
       item={editing}
+      listings={items}
       content={content}
       busy={busy || !contentReady}
       onError={setStatus}
       onBusy={setUploading}
       onCancel={() => {
-        if (editorOnly) window.close();
-        else setEditing(null);
+        if (editorOnly) window.history.replaceState(null, "", "/admin");
+        setEditorOnly(false);
+        setEditing(null);
       }}
       onSave={async (listing, bestSeller) => {
         setBusy(true);
@@ -509,6 +513,7 @@ export default function AdminClient() {
               items={items}
               bestSellerIds={content.bestSellerIds}
               onBestSeller={toggleBestSeller}
+              onEdit={item => { setStatus(""); setEditing({ ...item }); }}
               onSave={save}
               onError={setStatus}
               onAdd={() =>

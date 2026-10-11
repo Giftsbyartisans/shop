@@ -1,3 +1,4 @@
+import ShopSkeleton from "@/components/shop-skeleton";
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { preconnect } from 'react-dom';
@@ -7,7 +8,7 @@ import { loadPublicCatalog, loadPublicShopContent } from '@/lib/server-shop-cont
 
 export const metadata: Metadata = { title: 'Best sellers | GiftsByArtisans' };
 export default function Page() {
-  return <Suspense fallback={<main className="shop collection"><p role="status">Loading best sellers…</p></main>}><BestSellers /></Suspense>;
+  return <Suspense fallback={<ShopSkeleton variant="collection" />}><BestSellers /></Suspense>;
 }
 async function BestSellers() {
   if (mediaCdnUrl) preconnect(mediaCdnUrl);

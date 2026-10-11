@@ -5,11 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatPrice, type Listing } from "@/lib/catalog";
 import { demoListings } from "@/lib/catalog";
 import { importListings } from "@/lib/listing-import";
-import ShopImage, { uploadImage } from "./shop-image";
-import { fetchAuthSession } from "aws-amplify/auth";
-import { getProperties } from "aws-amplify/storage";
-import { copyEtsyImages, etsyUploadId } from "@/lib/etsy-image-import";
-import { mediaUploadPrefix } from "@/lib/media-paths";
+import ShopImage from "./shop-image";
+import { createEtsyPhotoCopier } from "./etsy-photo-upload";
+import { copyEtsyImages, isEtsyImage } from "@/lib/etsy-image-import";
 import ManagerIcon from "./manager-icon";
 
 type Props = {
@@ -22,6 +20,7 @@ type Props = {
     onProgress?: (completed: number, total: number) => void,
   ) => Promise<boolean>;
   onAdd: () => void;
+  onEdit?: (item: Listing) => void;
   onError: (message: string) => void;
   children: React.ReactNode;
 };
@@ -31,6 +30,7 @@ export default function AdminListings({
   onBestSeller,
   onSave,
   onAdd,
+  onEdit,
   onError,
   children,
   transferOnly = false,
@@ -94,6 +94,28 @@ export default function AdminListings({
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  const etsyListings = items.filter(item => [item.image, ...(item.images ?? [])].some(isEtsyImage));
+  async function migrateEtsyPhotos() {
+    setImportProgress({ phase: "saving", filename: "Existing Etsy photos", completed: 0, total: 0, message: "Preparing photo migration…" });
+    try {
+      const copyPhoto = await createEtsyPhotoCopier();
+      const result = await copyEtsyImages(etsyListings, copyPhoto, (completed, total) => {
+        setImportProgress(current => current && { ...current, completed, total, message: `Copying Etsy photos: ${completed} of ${total}` });
+      });
+      // Preserve live listings when any of their photos could not be copied.
+      const migrated = result.listings.filter(item => ![item.image, ...(item.images ?? [])].some(isEtsyImage));
+      const replacements = new Map(migrated.map(item => [item.id, item]));
+      const saved = await onSave(items.map(item => replacements.get(item.id) ?? item));
+      if (!saved) throw new Error("Could not save migrated listings. Retry to reuse photos already uploaded.");
+      const message = `${migrated.length} listings now use uploaded photos.${result.warnings.length ? ` Photos failed: ${result.warnings.slice(0, 3).join("; ")}. Retry to finish remaining listings.` : ""}`;
+      setImportProgress(current => current && { ...current, phase: result.warnings.length ? "error" : "success", message });
+    } catch (error) {
+      const message = error instanceof Error && error.message ? error.message : "Photo migration failed. Check your connection and admin sign-in.";
+      onError(message);
+      setImportProgress(current => current && { ...current, phase: "error", message });
+    }
+  }
+  if (children && !transferOnly) return <>{children}</>;
   return (
     <div className="manager-listings-view">
       {importProgress &&
@@ -171,7 +193,10 @@ export default function AdminListings({
         <button disabled={importProgress?.phase === "reading" || importProgress?.phase === "saving"} onClick={() => file.current?.click()}>
           <ManagerIcon name="upload" />
           Import Etsy CSV / JSON
-        </button></>}
+        </button>
+        <button type="button" disabled={!etsyListings.length || importProgress?.phase === "reading" || importProgress?.phase === "saving"}
+          onClick={() => void migrateEtsyPhotos()}>Copy existing Etsy photos to our storage ({etsyListings.length})</button>
+        </>}
         <input
           ref={file}
           type="file"
@@ -195,34 +220,8 @@ export default function AdminListings({
                 await selected.text(),
                 selected.name,
               );
-              const session = await fetchAuthSession();
-              const token = session.tokens?.accessToken.toString();
-              if (!token) throw new Error("Sign in before importing photos.");
-              const imported = await copyEtsyImages(parsed, async (source, listing) => {
-                const uploadId = await etsyUploadId(listing.id, source);
-                // Stable listing ID keeps reuse working even when its title changes.
-                const context = { kind: "listing-images" as const, name: "etsy", entityId: listing.id };
-                const filename = "etsy-photo";
-                const path = `${mediaUploadPrefix(context, filename, uploadId)}/1600.webp`;
-                try {
-                  await getProperties({ path });
-                  return `s3:${path}`;
-                } catch (error) {
-                  const missing = error instanceof Error && ["NotFound", "NoSuchKey"].includes(error.name);
-                  const status = (error as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
-                  if (!missing && status !== 404) throw error;
-                }
-                const response = await fetch("/api/import-image", {
-                  method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ url: source }), signal: AbortSignal.timeout(25000),
-                });
-                if (!response.ok) {
-                  const result = await response.json();
-                  throw new Error(result.error || "Photo download failed.");
-                }
-                const blob = await response.blob();
-                return uploadImage(new File([blob], filename, { type: blob.type }), context, uploadId);
-              }, (completed, total) => setImportProgress(current => current && {
+              const copyPhoto = await createEtsyPhotoCopier();
+              const imported = await copyEtsyImages(parsed, copyPhoto, (completed, total) => setImportProgress(current => current && {
                 ...current, phase: "saving", completed, total,
                 message: `Copying and optimizing Etsy photos: ${completed} of ${total}`,
               }));
@@ -356,21 +355,16 @@ export default function AdminListings({
                 <Link
                   className="manager-product-open"
                   href={`/admin?listing=${encodeURIComponent(item.id)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   onClick={(event) => {
                     if (
-                      !event.ctrlKey &&
+                      onEdit && !event.ctrlKey &&
                       !event.metaKey &&
                       !event.shiftKey &&
                       !event.altKey
                     ) {
                       event.preventDefault();
-                      window.open(
-                        `/admin?listing=${encodeURIComponent(item.id)}`,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
+                      if (onEdit) onEdit(item);
+
                     }
                   }}
                   aria-label={`Edit ${item.title}`}
@@ -412,21 +406,16 @@ export default function AdminListings({
                   </button>
                   <Link
                     href={`/admin?listing=${encodeURIComponent(item.id)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     onClick={(event) => {
                       if (
-                        !event.ctrlKey &&
+                        onEdit && !event.ctrlKey &&
                         !event.metaKey &&
                         !event.shiftKey &&
                         !event.altKey
                       ) {
                         event.preventDefault();
-                        window.open(
-                          `/admin?listing=${encodeURIComponent(item.id)}`,
-                          "_blank",
-                          "noopener,noreferrer",
-                        );
+                        if (onEdit) onEdit(item);
+
                       }
                     }}
                     className="manager-edit-link"

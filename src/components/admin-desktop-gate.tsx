@@ -1,4 +1,5 @@
 "use client";
+import ShopSkeleton from "./shop-skeleton";
 import Link from 'next/link';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { loadShopContent } from '@/lib/backend';
@@ -27,13 +28,13 @@ export default function AdminDesktopGate({ children }: { children: React.ReactNo
     return () => { active = false; window.removeEventListener('admin-desktop-setting', changed); };
   }, []);
   if (desktop || restriction === false) return children;
-  if (restriction === null) return <main className="admin-desktop-notice"><p role="status">Loading admin panel…</p></main>;
+  if (restriction === null) return <main className="admin-desktop-notice"><ShopSkeleton /></main>;
   return <main className="admin-desktop-notice">
     <div className="admin-desktop-message">
       <h1>Please use a desktop</h1>
       <p>The admin panel is available on desktop screens only.</p>
       <Link href="/">Back to shop</Link>
     </div>
-    <p className="admin-desktop-loading" role="status">Loading admin panel…</p>
+    <div className="admin-desktop-loading"><ShopSkeleton /></div>
   </main>;
 }

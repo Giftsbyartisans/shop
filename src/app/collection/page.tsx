@@ -1,3 +1,4 @@
+import ShopSkeleton from "@/components/shop-skeleton";
 import { Suspense } from 'react';
 import { preconnect } from 'react-dom';
 import Storefront from '@/components/storefront';
@@ -9,5 +10,5 @@ async function Collection() {
   return <Storefront page="collection" initialContent={initialContent} initialListings={initialListings} />;
 }
 export default function Page() {
-  return <Suspense fallback={<main className="shop collection"><p role="status">Loading products…</p></main>}><Collection /></Suspense>;
+  return <Suspense fallback={<ShopSkeleton variant="collection" />}><Collection /></Suspense>;
 }

@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import type { Listing } from "@/lib/catalog";
 import ShopImage from "./shop-image";
 import ShopVideo from "./shop-video";
+import VideoThumbnail from "./video-thumbnail";
 export default function ListingGallery({ item }: { item: Listing }) {
   const images = item.images?.length ? item.images : [item.image];
   const media = [
@@ -82,10 +83,7 @@ export default function ListingGallery({ item }: { item: Listing }) {
               {entry.type === "image" ? (
                 <ShopImage src={entry.src} alt="" sizes="80px" />
               ) : (
-                <span className="product-video-thumbnail" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                  <span>Video</span>
-                </span>
+                <VideoThumbnail src={entry.src} />
               )}
             </button>
           ))}

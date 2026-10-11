@@ -1,3 +1,4 @@
+import ShopSkeleton from "@/components/shop-skeleton";
 import { Suspense } from 'react';
 import { preconnect, preload } from 'react-dom';
 import { cdnImageUrl, imageSrcSet, mediaCdnUrl } from '@/lib/image-delivery';
@@ -13,5 +14,5 @@ async function HomeContent() {
   return <Storefront initialContent={initialContent} initialListings={initialListings} />;
 }
 export default function Home() {
-  return <Suspense fallback={<div className="store-hero-placeholder" role="status"><span className="sr-only">Loading shop</span></div>}><HomeContent /></Suspense>;
+  return <Suspense fallback={<ShopSkeleton variant="home" />}><HomeContent /></Suspense>;
 }

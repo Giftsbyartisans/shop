@@ -6,11 +6,13 @@ import type { Listing } from "@/lib/catalog";
 import type { ShopContent } from "@/lib/content";
 import ShopImage, { uploadImage } from "./shop-image";
 import ShopVideo from "./shop-video";
+import VideoThumbnail from "./video-thumbnail";
 import { mediaUploadPrefix } from "@/lib/media-paths";
 import ManagerIcon from "./manager-icon";
 
 type Props = {
   item: Listing;
+  listings: Listing[];
   content: ShopContent;
   busy: boolean;
   onSave: (item: Listing, bestSeller: boolean) => Promise<void>;
@@ -20,6 +22,7 @@ type Props = {
 };
 export default function ListingEditor({
   item,
+  listings,
   content,
   busy,
   onSave,
@@ -41,9 +44,22 @@ export default function ListingEditor({
     ),
     [uploading, setUploading] = useState(false),
     [uploadStatus, setUploadStatus] = useState("");
+  const [videoProgress, setVideoProgress] = useState<number | null>(null);
+  const [showVideoLibrary, setShowVideoLibrary] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState("");
+  const uploadedVideos = Array.from(new Map(
+    listings.flatMap(listing => (listing.videos ?? [])
+      .filter(src => src.startsWith("s3:"))
+      .map((src, index) => [src, { src, label: `${listing.title} — Video ${index + 1}` }] as const)),
+  ).values());
   const photos = useRef<HTMLInputElement>(null),
     videos = useRef<HTMLInputElement>(null);
   const images = draft.images ?? [];
+  const [initialDraft] = useState(() => JSON.stringify(draft));
+  const [initialBestSeller] = useState(bestSeller);
+  const hasChanges = JSON.stringify(draft) !== initialDraft
+    || bestSeller !== initialBestSeller;
+  const missingCategory = !draft.category.trim();
   function movePhoto(from: number, to: number) {
     if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return;
     setDraft((current) => {
@@ -91,10 +107,19 @@ export default function ListingEditor({
         if (video) {
           const prefix = mediaUploadPrefix({ kind: "listing-videos", name: draft.title, entityId: draft.id }, file.name, crypto.randomUUID());
           const storagePath = `${prefix}/original.${file.type === "video/mp4" ? "mp4" : "webm"}`;
+          setVideoProgress(0);
           await uploadData({
             path: storagePath,
             data: file,
-            options: { contentType: file.type, cacheControl: "public, max-age=31536000, immutable" },
+            options: {
+              contentType: file.type,
+              cacheControl: "public, max-age=31536000, immutable",
+              onProgress: ({ transferredBytes, totalBytes }) => {
+                const percent = Math.min(100, Math.round(transferredBytes / (totalBytes || file.size) * 100));
+                setVideoProgress(percent);
+                setUploadStatus(`Uploading video ${index + 1} of ${inputFiles.length}: ${percent}%`);
+              },
+            },
           }).result;
           path = `s3:${storagePath}`;
         } else path = await uploadImage(file, { kind: "listing-images", name: draft.title, entityId: draft.id });
@@ -114,6 +139,7 @@ export default function ListingEditor({
       setUploading(false);
       onBusy(false);
       setUploadStatus("");
+      setVideoProgress(null);
     }
   }
   return (
@@ -215,16 +241,21 @@ export default function ListingEditor({
               }
             />
           </label>
-          <label>
+          <label className={missingCategory ? "listing-category-missing" : undefined}>
             Category
             <select
+              required
+              aria-invalid={missingCategory}
+              aria-describedby={missingCategory ? "listing-category-error" : undefined}
               value={draft.category}
               onChange={(e) => setDraft({ ...draft, category: e.target.value })}
             >
+              <option value="">Select a category</option>
               {categories.map((category) => (
                 <option key={category}>{category}</option>
               ))}
             </select>
+            {missingCategory && <span id="listing-category-error" className="listing-category-error">Select a category before publishing.</span>}
           </label>
         </div>
         <p className="listing-edit-help">
@@ -306,6 +337,19 @@ export default function ListingEditor({
                 </div>
               </div>
             ))}
+            <button
+              type="button"
+              className="listing-edit-add-media"
+              disabled={images.length >= 10}
+              onClick={() => photos.current?.click()}
+            >
+              <ManagerIcon name="Banner Image" />
+              <strong>Add photos</strong>
+              <span>{10 - images.length} remaining</span>
+            </button>
+          </div>
+          <h3 className="listing-edit-video-heading">Videos</h3>
+          <div className="listing-edit-media-grid listing-edit-video-grid">
             {(draft.videos ?? []).map((video, index) => (
               <div className="listing-edit-media-tile" key={video}>
                 <ShopVideo src={video} />
@@ -327,16 +371,6 @@ export default function ListingEditor({
             <button
               type="button"
               className="listing-edit-add-media"
-              disabled={images.length >= 10}
-              onClick={() => photos.current?.click()}
-            >
-              <ManagerIcon name="Banner Image" />
-              <strong>Add photos</strong>
-              <span>{10 - images.length} remaining</span>
-            </button>
-            <button
-              type="button"
-              className="listing-edit-add-media"
               disabled={(draft.videos?.length ?? 0) >= 2}
               onClick={() => videos.current?.click()}
             >
@@ -345,6 +379,41 @@ export default function ListingEditor({
               <span>{2 - (draft.videos?.length ?? 0)} remaining</span>
             </button>
           </div>
+          <button type="button" className="listing-reuse-video-toggle"
+            disabled={(draft.videos?.length ?? 0) >= 2}
+            aria-expanded={showVideoLibrary}
+            onClick={() => setShowVideoLibrary(value => !value)}>
+            Reuse uploaded video
+          </button>
+          {showVideoLibrary && (
+            <div className="listing-video-library">
+              <p>Choose an uploaded video</p>
+              <div className="listing-video-library-grid">
+                {uploadedVideos.map(video => {
+                  const added = draft.videos?.includes(video.src);
+                  return (
+                    <button key={video.src} type="button" className="listing-video-choice"
+                      disabled={added || (draft.videos?.length ?? 0) >= 2}
+                      aria-pressed={selectedVideo === video.src}
+                      onClick={() => setSelectedVideo(video.src)}>
+                      <VideoThumbnail src={video.src} />
+                      <span className="listing-video-choice-title">{video.label}</span>
+                      {added && <span>Already added</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {!uploadedVideos.length && <p>No uploaded videos are available yet.</p>}
+              {selectedVideo && <div className="listing-video-library-preview"><ShopVideo src={selectedVideo} /></div>}
+              <button type="button" disabled={!selectedVideo || (draft.videos?.length ?? 0) >= 2 || draft.videos?.includes(selectedVideo)}
+                onClick={() => {
+                  if (!selectedVideo || (draft.videos?.length ?? 0) >= 2 || draft.videos?.includes(selectedVideo)) return;
+                  setDraft(current => ({ ...current, videos: [...(current.videos ?? []), selectedVideo] }));
+                  setSelectedVideo("");
+                  setShowVideoLibrary(false);
+                }}>Add selected video</button>
+            </div>
+          )}
           <input
             hidden
             ref={photos}
@@ -367,7 +436,12 @@ export default function ListingEditor({
               e.target.value = "";
             }}
           />
-          {uploadStatus && <p role="status">{uploadStatus}</p>}
+          {uploadStatus && (
+            <div className="listing-upload-progress" role="status" aria-live="polite">
+              <p>{uploadStatus}</p>
+              {videoProgress !== null && <progress aria-label="Video upload progress" value={videoProgress} max={100} />}
+            </div>
+          )}
           <details className="listing-edit-image-url">
             <summary>Add a photo from an HTTPS URL</summary>
             <input
@@ -428,14 +502,22 @@ export default function ListingEditor({
           added. Current status: {draft.published ? "Published" : "Draft"}.
         </p>
         <div className="listing-edit-submit">
+          <p role="status">{hasChanges ? "You have unsaved changes." : "You have no unsaved changes."}</p>
+          {item.published && (
+            <Link className="listing-view-live" href={`/listing/${encodeURIComponent(item.id)}`} target="_blank" rel="noopener noreferrer">
+              View listing
+            </Link>
+          )}
           {draft.published && (
             <button type="submit" name="action" value="unpublish">
               Deactivate listing
             </button>
           )}
-          <button className="primary" type="submit" name="action" value="publish">
-            {busy ? "Publishing…" : "Publish listing"}
-          </button>
+          {(hasChanges || !draft.published) && (
+            <button className="primary" type="submit" name="action" value="publish">
+              {busy ? "Publishing…" : draft.published ? "Publish changes" : "Publish listing"}
+            </button>
+          )}
         </div>
       </fieldset>
     </form>
