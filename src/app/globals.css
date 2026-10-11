@@ -472,3 +472,7 @@ select:not([multiple]):not([size]),select[size="1"]:not([multiple]){appearance:n
 @media(max-width:850px){.shop-home .demo-track>*{flex-basis:calc((100% - 24px)/2)}.shop-home .demo-controls button.homepage-carousel-arrow{top:22vw}}
 @media(max-width:600px){.shop-home>#categories,.shop-home>#best-sellers{padding-inline:5%;padding-block:28px 36px}.shop-home .demo-track{gap:16px}.shop-home .demo-track>*{flex-basis:82%}.shop-home .demo-controls button.homepage-carousel-arrow{top:32vw;width:36px;height:36px}.homepage-carousel-arrow.previous{left:-10px}.homepage-carousel-arrow.next{right:-10px}.homepage-listing .listing-name{font-size:18px}}
 @media(prefers-reduced-motion:reduce){.shop-home .demo-track{scroll-behavior:auto}.shop-home .demo-media img{transition:none}}
+
+/* Reserve artwork space until saved banner settings arrive. */
+.store-hero-placeholder{width:100%;aspect-ratio:3 / 1;background:#f5eee7;display:grid;place-items:center}
+.store-hero-placeholder>p{padding:20px;text-align:center;color:#666}

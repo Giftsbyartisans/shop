@@ -2,7 +2,9 @@ import { defaultContent, validateContent, type ShopContent } from "./content";
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { fetchAuthSession } from "aws-amplify/auth";
-import { list, remove } from "aws-amplify/storage";
+import { list, remove, uploadData } from "aws-amplify/storage";
+import { PUBLIC_CATALOG_PATH } from "./public-catalog";
+import { PUBLIC_SETTINGS_PATH } from "./public-shop-content";
 import { cleanupListingMedia } from "./listing-media-cleanup";
 import outputs from "../../amplify_outputs.json";
 import type { Schema } from "../../amplify/data/resource";
@@ -59,6 +61,16 @@ export async function listListings(admin = false): Promise<Listing[]> {
   } while (nextToken);
   return items;
 }
+async function publishPublicCatalog() {
+  const listings = await listListings();
+  await uploadData({ path: PUBLIC_CATALOG_PATH, data: JSON.stringify(listings.filter(item => item.published)), options: {
+    contentType: "application/json", cacheControl: "public, max-age=0, s-maxage=30, must-revalidate",
+  } }).result;
+}
+async function refreshPublicCatalog() {
+  try { await publishPublicCatalog(); }
+  catch { throw new Error("Listing changes were saved, but the fast-loading catalog could not be published. Save website settings to retry."); }
+}
 export async function saveListing(item: Listing) {
   validateListingLinks(item);
   validateListingMedia(item);
@@ -108,6 +120,7 @@ export async function saveListing(item: Listing) {
       check(await client.models.Listing.update(publicItem, adminAuth));
     else check(await client.models.Listing.create(publicItem, adminAuth));
   }
+  await refreshPublicCatalog();
 }
 export async function deleteListing(id: string) {
   const results = await Promise.all([
@@ -138,6 +151,7 @@ export async function deleteListing(id: string) {
   }
   if (publicRecord.data) check(await client.models.Listing.delete({ id }, adminAuth));
   if (draftRecord.data) check(await client.models.DraftListing.delete({ id }, adminAuth));
+  await refreshPublicCatalog();
 }
 
 export type Inquiry = {
@@ -208,6 +222,16 @@ export async function saveShopContent(content: ShopContent) {
   if (existing.data)
     check(await client.models.ShopSettings.update(input, adminAuth));
   else check(await client.models.ShopSettings.create(input, adminAuth));
+  try {
+    await uploadData({
+      path: PUBLIC_SETTINGS_PATH,
+      data: JSON.stringify(content),
+      options: { contentType: "application/json", cacheControl: "public, max-age=0, s-maxage=30, must-revalidate" },
+    }).result;
+    await publishPublicCatalog();
+  } catch {
+    throw new Error("Settings saved, but the fast-loading website snapshot could not be published. Save again to retry.");
+  }
 }
 export async function deleteInquiry(id: string) {
   check(await client.models.Inquiry.delete({ id }, adminAuth));

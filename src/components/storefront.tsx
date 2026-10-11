@@ -9,7 +9,7 @@ import { SocialLinks } from "./shop-frame";
 import { formatPrice, listingPrice, type Listing } from "@/lib/catalog";
 import { listListings, submitInquiry, loadShopContent } from "@/lib/backend";
 
-function Card({ item, content, showcase = false }: { item: Listing; content: ShopContent; showcase?: boolean }) {
+function Card({ item, content, showcase = false, eager = false }: { item: Listing; content: ShopContent; showcase?: boolean; eager?: boolean }) {
   const photos = Array.from(new Set([item.image, ...(item.images ?? [])].filter(Boolean)));
   const [selected, setSelected] = useState<string | null>(null);
   const photo = selected && photos.includes(selected) ? selected : photos[0];
@@ -19,8 +19,8 @@ function Card({ item, content, showcase = false }: { item: Listing; content: Sho
   return (
     <article className={`listing-card${showcase ? " homepage-listing" : ""}`}>
       <Link className="listing-media demo-media" href={"/listing/" + item.id}>
-        <ShopImage src={showcase ? photo : item.image} alt={item.title} loading="lazy"
-          sizes={showcase ? "(max-width: 600px) 75vw, (max-width: 850px) 46vw, (max-width: 1100px) 30vw, 19vw" : undefined} />
+        <ShopImage src={showcase ? photo : item.image} alt={item.title} loading={eager ? "eager" : "lazy"}
+          sizes={showcase ? "(max-width: 600px) 75vw, (max-width: 850px) 46vw, (max-width: 1100px) 30vw, 19vw" : "(max-width: 600px) 90vw, (max-width: 850px) 46vw, 30vw"} />
       </Link>
       {showcase && photos.length > 1 && (
         <div className="homepage-thumbnails" role="group" aria-label={`Photos of ${item.title}`}>
@@ -109,26 +109,37 @@ function Carousel({
 export default function Storefront({
   page = "home",
   id,
+  initialContent,
+  initialListings,
 }: {
   page?:
     "home" | "collection" | "contact" | "wholesale" | "policies" | "listing";
   id?: string;
+  initialContent?: ShopContent;
+  initialListings?: Listing[];
 }) {
-  const [content, setContent] = useState(defaultContent);
-  const [items, setItems] = useState<Listing[]>([]),
+  const [content, setContent] = useState(initialContent ?? defaultContent);
+  const [settingsStatus, setSettingsStatus] = useState<"loading" | "ready" | "failed">(initialContent ? "ready" : "loading");
+  const [items, setItems] = useState<Listing[]>(initialListings ?? []),
     [query, setQuery] = useState(""),
     [category, setCategory] = useState(""),
     [sort, setSort] = useState("featured"),
-    [ready, setReady] = useState(false),
+    [ready, setReady] = useState(Boolean(initialListings)),
     [error, setError] = useState("");
   useEffect(() => {
     let active = true;
     void loadShopContent()
       .then((settings) => {
-        if (active) setContent(settings);
+        if (active) {
+          setContent(settings);
+          setSettingsStatus("ready");
+        }
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (active) {
+          setError(e.message);
+          if (!initialContent) setSettingsStatus("failed");
+        }
       });
     void listListings()
       .then((list) => {
@@ -148,7 +159,7 @@ export default function Storefront({
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialContent]);
   useEffect(() => {
     let active = true;
     let icon: HTMLLinkElement | null = null;
@@ -194,7 +205,13 @@ export default function Storefront({
       <ShopHeader content={content} />
       {page === "home" ? (
         <main className="shop shop-home">
-          <StoreBanner content={content} />
+          {settingsStatus === "ready" ? (
+            <StoreBanner content={content} />
+          ) : (
+            <div className="store-hero-placeholder" role="status" aria-busy={settingsStatus === "loading"}>
+              {settingsStatus === "loading" ? <span className="sr-only">Loading banner</span> : <p>Unable to load the banner. Please refresh the page.</p>}
+            </div>
+          )}
           <section id="categories" className="collection">
             <p className="eyebrow">SOMETHING FOR EVERY OCCASION</p>
             <h2>Shop by category</h2>
@@ -321,8 +338,8 @@ export default function Storefront({
             </p>
             {filtered.length ? (
               <div className="product-grid">
-                {filtered.map((i) => (
-                  <Card content={content} key={i.id} item={i} />
+                {filtered.map((i, index) => (
+                  <Card content={content} key={i.id} item={i} eager={index < 3} />
                 ))}
               </div>
             ) : (
