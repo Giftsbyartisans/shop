@@ -1267,3 +1267,14 @@ button:is(.store-hero-arrow,.homepage-carousel-arrow,.collection-mobile-arrow,.p
 .find-us-bar .payment-trust-pinterest{overflow:visible}.payment-trust-pinterest svg{display:block;flex-shrink:0;overflow:visible}
 
 @media(max-width:900px){.footer-grid>.footer-contact{grid-column:1 / -1;min-width:0}}
+
+.listing-back-link{display:inline-flex;align-items:center;gap:8px}.listing-back-link svg{flex-shrink:0}
+
+.shop-header .shop-account{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:0 0 44px;margin-left:auto;border-radius:50%;color:#222}
+.shop-header .shop-account:hover{background:#f4f4f4}
+.shop-header .shop-account:focus-visible{outline:2px solid #222;outline-offset:3px}
+
+.shop-header .shop-search{margin-left:auto;flex:0 1 400px}
+.shop-header .shop-account{margin-left:0}
+@media(max-width:1100px){.shop-header .shop-search{flex-basis:100%;max-width:520px}.shop-header .shop-account{margin-left:auto}}
+@media(max-width:650px){.shop-header .shop-search{max-width:none}}

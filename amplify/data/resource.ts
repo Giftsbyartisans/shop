@@ -13,6 +13,28 @@ const listingFields = () => ({
   videos: a.string().array(),
 });
 const schema = a.schema({
+  ShippingAddress: a.model({
+    recipient: a.string().required(),
+    line1: a.string().required(),
+    line2: a.string(),
+    city: a.string().required(),
+    region: a.string(),
+    postalCode: a.string().required(),
+    country: a.string().required(),
+    phone: a.string(),
+  }).authorization(allow => [allow.owner()]),
+  CustomerOrder: a.model({
+    owner: a.string().required(),
+    orderNumber: a.string().required(),
+    status: a.enum(["pending", "paid", "processing", "shipped", "delivered", "cancelled", "refunded"]),
+    total: a.float().required(),
+    currency: a.string().required(),
+    items: a.json().required(),
+    trackingUrl: a.url(),
+  }).authorization(allow => [
+    allow.ownerDefinedIn("owner").to(["read"]),
+    allow.groups(["Admins"]),
+  ]),
   ShopSettings: a
     .model({ content: a.json().required() })
     .authorization((allow) => [

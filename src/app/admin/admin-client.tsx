@@ -281,6 +281,7 @@ export default function AdminClient() {
     setStatus("");
     try {
       await saveShopContent(content);
+      setItems(await listListings(true));
       setDirty(false);
       window.dispatchEvent(new CustomEvent("admin-desktop-setting", { detail: content.adminDesktopOnly }));
       setStatus("Website changes saved. Your shop is up to date.");

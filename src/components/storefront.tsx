@@ -424,7 +424,8 @@ export default function Storefront({
       ) : page === "listing" ? (
         <main className="shop listing-detail">
           <Link className="listing-back-link" href={item?.category ? `/collection/${encodeURIComponent(item.category)}` : "/collection"}>
-            ← {item?.category || "Collections"}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" /></svg>
+            Explore {item?.category || "Collections"}
           </Link>
           {!ready ? (
             <ShopSkeleton variant="product" />

@@ -1,3 +1,4 @@
+import { categoryRenames } from "./category-renames";
 import { defaultContent, validateContent, type ShopContent } from "./content";
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
@@ -249,6 +250,7 @@ export async function saveShopContent(content: ShopContent) {
     const raw = typeof existing.data.content === "string"
       ? JSON.parse(existing.data.content) : existing.data.content;
     const previous = { ...structuredClone(defaultContent), ...raw } as ShopContent;
+    const renames = categoryRenames(previous.categories, content.categories);
     const currentImages = new Set(mediaReferences(content));
     const removedImages = mediaReferences(previous)
       .filter(path => !currentImages.has(path)).map(path => `s3:${path}`);
@@ -264,6 +266,17 @@ export async function saveShopContent(content: ShopContent) {
         });
       } catch {
         throw new Error("Image cleanup failed. Website settings were kept so you can save again to retry. Some files may already have been removed.");
+      }
+    }
+    if (renames.size) {
+      const [drafts, published] = await Promise.all([listListings(true), listListings(false)]);
+      for (const listing of drafts) {
+        const category = renames.get(listing.category);
+        if (category) check(await client.models.DraftListing.update({ id: listing.id, category }, adminAuth));
+      }
+      for (const listing of published) {
+        const category = renames.get(listing.category);
+        if (category) check(await client.models.Listing.update({ id: listing.id, category }, adminAuth));
       }
     }
   }
