@@ -99,7 +99,7 @@ export default function CustomerAuth({ initialMode }: { initialMode: "login" | "
   }
   async function logout() {
     setBusy(true); setError("");
-    try { await signOut(); setAccountEmail(""); change("login", "You have been signed out."); }
+    try { await signOut(); window.location.assign("/"); }
     catch { setError("Could not sign out. Please try again."); }
     finally { setBusy(false); }
   }
