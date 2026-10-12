@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Brand from "./brand";
+import { ShoppingLinks } from "./shopping-controls";
 import type { ShopContent } from "@/lib/content";
 export function ShopHeader({ content }: { content: ShopContent }) {
   return (
@@ -9,14 +10,9 @@ export function ShopHeader({ content }: { content: ShopContent }) {
       {content.announcement && (
         <div className="announcement">{content.announcement}</div>
       )}
+      <div className="shop-header-stack">
       <header className="shop-header">
         <Brand content={content} />
-        <nav>
-          <Link href="/#categories">Categories</Link>
-          <Link href="/collection">Collections</Link>
-          <Link href="/best-sellers">Best sellers</Link>
-          <Link href="/contact">Contact</Link>
-        </nav>
         <form action="/collection" className="shop-search" role="search">
           <input
             id="shop-search"
@@ -32,13 +28,24 @@ export function ShopHeader({ content }: { content: ShopContent }) {
           />
           <button type="submit">Search</button>
         </form>
+        <div className="shop-header-actions">
+        <ShoppingLinks />
         <Link href="/account" className="shop-account" aria-label="Your account" title="Your account">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
             <circle cx="12" cy="8" r="4" />
             <path d="M4 21v-2a8 8 0 0 1 16 0v2" />
           </svg>
         </Link>
+        </div>
       </header>
+      <nav className="shop-navigation" aria-label="Shop navigation">
+        <Link href="/collection">Collections</Link>
+        <Link href="/best-sellers">Best sellers</Link>
+        {content.categories.map(category => (
+          <Link href={"/collection/" + encodeURIComponent(category.name)} key={category.id}>{category.name}</Link>
+        ))}
+      </nav>
+      </div>
     </>
   );
 }
@@ -84,9 +91,8 @@ export function ShopFooter({ content }: { content: ShopContent }) {
         <div>
           <h3>Customer care</h3>
           <Link href="/contact">Contact us</Link>
-          <Link href="/policies">Shop policies</Link>
           {content.policies.map((p) => (
-            <Link href={"/policies#policy-" + p.id} key={p.id}>
+            <Link href={"/policies/" + encodeURIComponent(p.id)} key={p.id}>
               {p.title}
             </Link>
           ))}

@@ -39,7 +39,7 @@ export default function CustomerAuth({ initialMode }: { initialMode: "login" | "
 
   function change(next: Mode, notice = "") { setMode(next); setError(""); setMessage(notice); }
   async function finishLogin(result: SignInOutput) {
-    if (result.isSignedIn) { window.location.assign("/"); return; }
+    if (result.isSignedIn) { window.location.assign("/account"); return; }
     const step = result.nextStep.signInStep;
     if (step === "CONFIRM_SIGN_UP") {
       await resendSignUpCode({ username: email.trim() });

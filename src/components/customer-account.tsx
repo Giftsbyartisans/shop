@@ -75,9 +75,9 @@ export default function CustomerAccount({ email, busy, error, onSignOut }: { ema
           <p className={styles.intro}>Make yourself at home. Manage your details and discover something thoughtful.</p>
           <div className={styles.summary}><div><span>Email address</span><strong>{profileEmail}</strong></div><div><span>Email status</span><strong>{verified ? "Verified" : "Not verified"}</strong></div></div>
           <div className={styles.quickLinks}>
-            <Link href="/collection"><h3>Explore the collection <span>↗</span></h3><p>Find handcrafted pieces and personal gifts.</p></Link>
-            <Link href="/contact"><h3>Need a hand? <span>↗</span></h3><p>Contact us with questions about a product or purchase.</p></Link>
-            <Link href="/policies"><h3>Shop policies <span>↗</span></h3><p>Read about shipping, returns, and shopping with us.</p></Link>
+            <Link href="/collection"><h3>Explore the collection <span aria-hidden="true">→</span></h3><p>Find handcrafted pieces and personal gifts.</p></Link>
+            <Link href="/contact"><h3>Need a hand? <span aria-hidden="true">→</span></h3><p>Contact us with questions about a product or purchase.</p></Link>
+            <Link href="/policies/delivery"><h3>Shipping & delivery <span aria-hidden="true">→</span></h3><p>Read about shipping and delivery.</p></Link>
           </div>
         </> : tab === "profile" ? <>
           <p className={styles.intro}>Keep your customer profile up to date.</p>

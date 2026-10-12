@@ -12,6 +12,8 @@ import PaymentTrust from "./payment-trust";
 import HomepageBenefits from "./homepage-benefits";
 import TestimonialCarousel from "./testimonial-carousel";
 import { policyBody } from "@/lib/policy-text";
+import { ProductShopping } from "./shopping-controls";
+import ShoppingPage from "./shopping-page";
 import ShopImage from "./shop-image";
 import { formatPrice, listingPrice, type Listing } from "@/lib/catalog";
 import { listListings, submitInquiry, loadShopContent } from "@/lib/backend";
@@ -56,6 +58,7 @@ function Card({ item, content, showcase = false, eager = false }: { item: Listin
       )}
       <h3 className="listing-name"><Link href={"/listing/" + item.id}>{item.title}</Link></h3>
       <ListingPrices item={item} content={content} />
+      <ProductShopping id={item.id} compact />
     </article>
   );
 }
@@ -141,7 +144,7 @@ export default function Storefront({
   bestSellersOnly = false,
 }: {
   page?:
-    "home" | "collection" | "contact" | "wholesale" | "policies" | "listing";
+    "home" | "collection" | "contact" | "wholesale" | "policies" | "listing" | "cart" | "favorites";
   id?: string;
   initialContent?: ShopContent;
   initialListings?: Listing[];
@@ -240,9 +243,9 @@ export default function Storefront({
     (categoryOrder.get(a) ?? Number.MAX_SAFE_INTEGER) - (categoryOrder.get(b) ?? Number.MAX_SAFE_INTEGER));
   const item = visible.find((i) => i.id === id);
   return (
-    <>
+    <div className="storefront-frame">
       <ShopHeader content={content} />
-      {page === "home" ? (
+      {page === "cart" || page === "favorites" ? <ShoppingPage kind={page} listings={visible} content={content} ready={ready && !error && settingsStatus === "ready"} loadError={error} /> : page === "home" ? (
         <main className="shop shop-home">
           {settingsStatus === "ready" ? (
             <StoreBanner content={content} />
@@ -434,11 +437,15 @@ export default function Storefront({
               <ListingGallery item={item} />
               <section className="listing-detail-info">
                 <div className="listing-detail-heading">
-                  <p className="eyebrow">{item.category}</p>
+                  <div className="listing-category-favorite">
+                    <p className="eyebrow">{item.category}</p>
+                    <ProductShopping id={item.id} compact mode="favorite" />
+                  </div>
                   <h1>{item.title}</h1>
                   <div className="listing-detail-price"><ListingPrices item={item} content={content} detail /></div>
                 </div>
                 <p className="listing-maker">Handmade by GiftsByArtisans</p>
+                <ProductShopping id={item.id} mode="cart" />
                 <div className="listing-mobile-facts">
                   <span className="free-delivery">Free Shipping</span>
                   {content.reviews.length > 0 && <div>
@@ -492,13 +499,14 @@ export default function Storefront({
         </main>
       ) : (
         <main className={`info-page${page === "policies" ? " shop-policies-page" : ""}`}>
-          <h1>{page === "contact" ? "Contact us" : page === "wholesale" ? "Wholesale inquiry" : "Shop policies"}</h1>
+          <h1>{page === "contact" ? "Contact us" : page === "wholesale" ? "Wholesale inquiry" : id ? content.policies.find(policy => policy.id === id)?.title || "Shop policy" : "Shop policies"}</h1>
           {page === "policies" ? (
-            content.policies.map((p) => (
-              <details className="policy product-description" id={"policy-" + p.id} key={p.id}>
-                <summary>{p.title}</summary>
-                <p>{policyBody(p.title, p.text)}</p>
-              </details>
+            settingsStatus === "loading" && !initialContent ? <p role="status">Loading policies…</p> : settingsStatus === "failed" ? <p role="alert">Policies could not be loaded. Please refresh to try again.</p> : id ? (
+              content.policies.some(policy => policy.id === id) ? <article className="policy"><p className="pre-wrap">{policyBody(content.policies.find(policy => policy.id === id)!.title, content.policies.find(policy => policy.id === id)!.text)}</p></article> : <p>This policy could not be found. Choose a policy from the customer care links below.</p>
+            ) : content.policies.map((p) => (
+              <section className="policy" id={"policy-" + p.id} key={p.id}>
+                <h2><Link href={"/policies/" + encodeURIComponent(p.id)}>{p.title} <span aria-hidden="true">→</span></Link></h2>
+              </section>
             ))
           ) : (
             <>
@@ -513,7 +521,7 @@ export default function Storefront({
         </main>
       )}
       <ShopFooter content={content} />
-    </>
+    </div>
   );
 }
 function InquiryForm({ kind }: { kind: "contact" | "wholesale" }) {

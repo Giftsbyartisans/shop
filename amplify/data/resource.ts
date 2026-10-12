@@ -13,7 +13,13 @@ const listingFields = () => ({
   videos: a.string().array(),
 });
 const schema = a.schema({
+  CustomerFavorite: a.model({ listingId: a.string().required() })
+    .authorization(allow => [allow.owner()]),
+  CustomerPreferences: a.model({
+    defaultAddressId: a.string(),
+  }).authorization(allow => [allow.owner()]),
   ShippingAddress: a.model({
+    label: a.string(),
     recipient: a.string().required(),
     line1: a.string().required(),
     line2: a.string(),
@@ -21,7 +27,7 @@ const schema = a.schema({
     region: a.string(),
     postalCode: a.string().required(),
     country: a.string().required(),
-    phone: a.string(),
+    phone: a.string().required(),
   }).authorization(allow => [allow.owner()]),
   CustomerOrder: a.model({
     owner: a.string().required(),
