@@ -47,7 +47,7 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
       return <article className="shopping-item" key={lineKey}>
         {item && <Link href={`/listing/${encodeURIComponent(item.id)}`}><ShopImage src={item.images?.[0] || item.image} alt={item.title} sizes="120px" /></Link>}
         <div><h2>{item ? <Link href={`/listing/${encodeURIComponent(item.id)}`}>{item.title}</Link> : "Product no longer available"}</h2>
-          {item && <p className="shopping-item-price"><strong>{formatPrice(price)}</strong>{discounted && <><del>{formatPrice(item.price)}</del><span className="shopping-sale-tag">{percentOff}% off</span></>}{kind === "cart" && <span className="free-delivery">Free Shipping</span>}</p>}
+          {item && <p className="shopping-item-price"><strong>{formatPrice(price)}</strong>{discounted && <><del>{formatPrice(item.price)}</del><span className="shopping-sale-tag">{percentOff}% off</span></>}{kind === "cart" && <Link className="free-delivery" href="/policies/delivery">Shipping details</Link>}</p>}
           {entry.personalization && <div className="cart-personalization-preview"><strong>Personalization {fee > 0 ? `(+${formatPrice(fee)} per item)` : "(free)"}</strong><p>{entry.personalization}</p></div>}
           {kind === "cart" && item && <label className="shopping-quantity">Quantity<select aria-label={`Quantity for ${item.title}`} value={entry.quantity} onChange={event => quantity(lineKey, Number(event.target.value))}>{Array.from({ length: 99 }, (_, index) => <option key={index + 1}>{index + 1}</option>)}</select></label>}
           {kind === "favorites" && item && <ProductShopping id={item.id} compact />}

@@ -19,6 +19,8 @@ const listingFields = () => ({
   videos: a.string().array(),
 });
 const schema = a.schema({
+  PaymentSettings: a.model({ encryptedContent: a.string().required() })
+    .authorization(allow => [allow.groups(["Admins"])]),
   CustomerCart: a.model({ items: a.json().required() })
     .authorization(allow => [allow.owner()]),
   CustomerFavorite: a.model({ listingId: a.string().required() })

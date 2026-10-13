@@ -9,7 +9,7 @@ npm install
 npm run sandbox
 ```
 
-The sandbox uses the configured `shop-dev` AWS profile. Deploying regenerates `amplify_outputs.json`, which must be present before building the frontend. Existing outputs from the Todo starter do not support the new models.
+The sandbox uses the configured `shop-dev` AWS profile. `npm run sandbox` writes its configuration to `.amplify/sandbox-outputs/amplify_outputs.json`, preserving the root backend configuration used by this checkout. The root `amplify_outputs.json` must be present before building the frontend. The sandbox has separate data and users; it does not contain the production catalog. For a sandbox frontend, explicitly copy the sandbox configuration to the root in a separate development checkout. Existing outputs from the Todo starter do not support the new models.
 
 In the deployed Cognito user pool, create an administrator with an email and temporary password, then add the user to the `Admins` group. Open `/admin` to sign in and set their permanent password. Group membership is granted through AWS administration, never through the public frontend.
 

@@ -20,6 +20,7 @@ export type ShopContent = {
   instagram: string;
   etsy: string;
   pinterest: string;
+  businessName?: string;
   contactEmail: string;
   phone: string;
   address: string;
@@ -50,6 +51,7 @@ export const defaultContent: ShopContent = {
   instagram: "",
   etsy: "",
   pinterest: "",
+  businessName: "",
   contactEmail: "",
   phone: "",
   address: "",
@@ -68,17 +70,22 @@ export const defaultContent: ShopContent = {
     {
       id: "delivery",
       title: "Shipping & delivery",
-      text: "Delivery times and shipping costs depend on the product and destination. Check the seller’s listing before placing an order.",
+      text: "Standard shipping is free. Estimated delivery takes 10–15 days; delivery dates are estimates, not guarantees. Confirm the delivery address and any personalization details before purchasing. For purchases completed on Etsy, review the delivery estimate and shipping charges displayed at Etsy checkout before paying. Contact us through the contact page about delayed or missing deliveries.",
     },
     {
       id: "returns",
       title: "Returns & exchanges",
-      text: "Please check the seller’s return policy before purchasing, particularly for custom and personalized items.",
+      text: "Returns and exchanges may be requested within 30 days of delivery through our contact page. Include your order number and the reason for your request. Confirm eligibility, return instructions, return postage costs and refund timing with us before sending an item back. For custom or personalized items, confirm any return exceptions before purchasing. Report damaged, defective or incorrect items with your order number and photos. Purchases completed on Etsy are handled through the Etsy order and the policies shown when you purchased.",
+    },
+    {
+      id: "cancellation",
+      title: "Cancellations & refunds",
+      text: "Contact us as soon as possible to request a cancellation, including your order number. A request does not confirm cancellation; wait for our response before assuming the order has been cancelled. Confirm the cancellation cutoff and any restrictions for personalized items before purchasing. Refund eligibility, return postage costs and processing time must be confirmed with us. For purchases completed on Etsy, request cancellations and refunds through your Etsy order; refunds are processed through that purchase’s payment provider.",
     },
     {
       id: "privacy",
       title: "Your privacy",
-      text: "Inquiry details are stored securely in our backend and are available to authorized shop administrators so they can respond to your request. Contact us with questions about your information.",
+      text: "We use the information you submit to respond to inquiries and manage your account, saved addresses, cart and favorites. This may include your name, email address, phone number, delivery address, messages and personalization details. Our site uses AWS Amplify services for authentication, storage and backend records. Authorized shop administrators can access information needed to support customers. Browser storage is used to remember shopping preferences.\n\nPurchases currently completed on Etsy are processed by Etsy under its own privacy policy. If direct Payoneer Checkout is enabled, payment processing will involve the providers identified in that checkout, which may receive customer, billing, order and payment information to process payments and manage fraud, refunds and disputes. Never send card details or payment passwords through our inquiry form.\n\nContact us through the contact page to request access, correction or deletion of your information. Some records may need to be retained to meet legal requirements or resolve disputes.",
     },
   ],
 };

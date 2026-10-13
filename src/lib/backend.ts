@@ -5,7 +5,7 @@ import { generateClient } from "aws-amplify/data";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { list, remove, uploadData } from "aws-amplify/storage";
 import { PUBLIC_CATALOG_PATH } from "./public-catalog";
-import { PUBLIC_SETTINGS_PATH } from "./public-shop-content";
+import { PUBLIC_SETTINGS_PATH, parsePublicShopContent } from "./public-shop-content";
 import { cleanupListingMedia, mediaReferences } from "./listing-media-cleanup";
 import outputs from "../../amplify_outputs.json";
 import type { Schema } from "../../amplify/data/resource";
@@ -247,9 +247,7 @@ export async function loadShopContent() {
     typeof result.data.content === "string"
       ? JSON.parse(result.data.content)
       : result.data.content;
-  const content = { ...structuredClone(defaultContent), ...raw } as ShopContent;
-  validateContent(content);
-  return content;
+  return parsePublicShopContent(raw);
 }
 export async function saveShopContent(content: ShopContent) {
   validateContent(content);

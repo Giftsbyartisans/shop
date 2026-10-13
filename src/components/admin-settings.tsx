@@ -116,13 +116,13 @@ export default function AdminSettings({
       {multiline ? (
         <textarea
           rows={4}
-          value={String(content[key])}
+          value={String(content[key] ?? "")}
           onChange={(e) => change(key, e.target.value as never)}
         />
       ) : (
         <input
           type={key === "contactEmail" ? "email" : "text"}
-          value={String(content[key])}
+          value={String(content[key] ?? "")}
           onChange={(e) => change(key, e.target.value as never)}
         />
       )}
@@ -492,6 +492,7 @@ export default function AdminSettings({
         {field("etsy", "Etsy shop URL")}
         {field("pinterest", "Pinterest profile URL")}
         {field("footerText", "Footer description", true)}
+        {field("businessName", "Legal business name")}
         {field("contactEmail", "Customer contact email")}
         {field("phone", "Phone number")}
         {field("address", "Business address", true)}

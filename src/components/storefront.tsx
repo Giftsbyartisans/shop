@@ -29,7 +29,7 @@ function ListingPrices({ item, content, detail = false }: { item: Listing; conte
         <strong className={discounted ? "discount-price" : undefined}>{detail && discounted && <span className="listing-price-now">Now </span>}{formatPrice(price)}</strong>
         {discounted && <span className="listing-was"><del>{formatPrice(item.price)}</del> <span className="listing-percent-off">({percentOff}% off)</span></span>}
       </div>
-      <span className="free-delivery">Free Shipping</span>
+      <Link className="free-delivery" href="/policies/delivery">Shipping details</Link>
     </>
   );
 }
@@ -58,7 +58,10 @@ function Card({ item, content, showcase = false, eager = false }: { item: Listin
         </div>
       )}
       <h3 className="listing-name"><Link href={"/listing/" + item.id}>{item.title}</Link></h3>
-      <ListingPrices item={item} content={content} />
+      <div className="card-price-row">
+        <div><ListingPrices item={item} content={content} /></div>
+        <div className="card-mobile-favorite"><ProductShopping id={item.id} compact mode="favorite" /></div>
+      </div>
       <ProductShopping id={item.id} compact />
     </article>
   );
@@ -325,7 +328,7 @@ export default function Storefront({
             <div className="collection-eyebrow-row">
               <p className="eyebrow">CURATED WITH CARE</p>
               <p className="collection-product-count" role="status">
-                {categoryOnly ? filtered.length : category || query ? `${filtered.length} of ${visible.length}` : visible.length} {(categoryOnly ? filtered.length : visible.length) === 1 ? "product" : "products"}
+                {categoryOnly || category ? filtered.length : query ? `${filtered.length} of ${visible.length}` : visible.length} {(categoryOnly || category ? filtered.length : visible.length) === 1 ? "product" : "products"}
               </p>
             </div>
             <div className="collection-heading-row">
@@ -450,7 +453,7 @@ export default function Storefront({
                 <p className="listing-maker">Handmade by GiftsByArtisans</p>
                 <ProductShopping id={item.id} mode="cart" item={resolvePersonalization(item, content)} />
                 <div className="listing-mobile-facts">
-                  <span className="free-delivery">Free Shipping</span>
+                  <Link className="free-delivery" href="/policies/delivery">Shipping details</Link>
                   {content.reviews.length > 0 && <div>
                     <span>Testimonials</span>
                     <a href="#listing-testimonials">{content.reviews.length} customer {content.reviews.length === 1 ? "story" : "stories"}</a>
@@ -482,7 +485,7 @@ export default function Storefront({
                   <summary>Description</summary>
                   <p className="description">{item.description}</p>
                 </details>
-                <ShippingPolicy />
+                <ShippingPolicy content={content} />
               </section>
             </div>
           ) : (

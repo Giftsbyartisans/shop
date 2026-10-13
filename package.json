@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "sandbox": "ampx sandbox --profile shop-dev",
+    "sandbox": "ampx sandbox --profile shop-dev --outputs-out-dir .amplify/sandbox-outputs",
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {

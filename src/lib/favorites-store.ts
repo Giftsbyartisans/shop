@@ -20,11 +20,11 @@ function emit(next: State) { state = next; for (const listener of listeners) lis
 function guestState() { try { return parseShopping(localStorage.getItem(SHOPPING_KEY) || EMPTY_SHOPPING); } catch { return parseShopping(EMPTY_SHOPPING); } }
 function check(result: { errors?: readonly { message: string }[] }) { if (result.errors?.length) throw new Error("Could not sync favorites. Please try again."); }
 function model() { if (!client.models.CustomerFavorite) throw new Error("Account favorites need a backend update before they can be saved."); return client.models.CustomerFavorite; }
-async function initialize() {
+async function initialize(forceRefresh = false) {
   const run = ++generation;
   emit({ ids: [], signedIn: false, loading: true, error: "" });
   try {
-    const session = await fetchAuthSession();
+    const session = await fetchAuthSession({ forceRefresh });
     if (run !== generation) return;
     if (!session.tokens) { userId = null; records.clear(); emit({ ids: guestState().favorites, signedIn: false, loading: false, error: "" }); return; }
     const user = await getCurrentUser();
@@ -54,9 +54,13 @@ async function initialize() {
     emit({ ids: [...records.keys()], signedIn: true, loading: false, error: "" });
     // Remove only guest entries that were successfully merged into the account.
     try { const guest = guestState(); guest.favorites = guest.favorites.filter(id => !guestIds.includes(id)); localStorage.setItem(SHOPPING_KEY, JSON.stringify(guest)); } catch { /* Account records have already been saved. */ }
-  } catch (cause) { if (run === generation) emit({ ...state, loading: false, error: cause instanceof Error ? cause.message : "Could not load favorites. Please try again." }); }
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "Could not load favorites. Please try again.";
+    const sessionError = /token|not authorized|unauthenticated|session.*expired/i.test(message);
+    if (run === generation) emit({ ...state, loading: false, error: sessionError ? "Your login session could not be verified. Please sign out and log in again." : message });
+  }
 }
-export function refreshFavorites() { if (!pending) pending = initialize().finally(() => { pending = null; }); return pending; }
+export function refreshFavorites(forceRefresh = false) { if (!pending) pending = initialize(forceRefresh).finally(() => { pending = null; }); return pending; }
 export function subscribeFavorites(listener: () => void) {
   listeners.add(listener);
   if (!started) {
@@ -71,6 +75,9 @@ export const favoritesSnapshot = () => state;
 export const favoritesServerSnapshot = () => initial;
 export async function setFavorite(listingId: string, saved: boolean) {
   if (pending) await pending;
+  // Retry initialization with fresh credentials rather than retaining a failed
+  // session check for the lifetime of the page.
+  if (state.error) await refreshFavorites(true);
   if (state.loading || state.error) throw new Error(state.error || "Favorites are still loading. Please try again.");
   const run = generation;
   if (!state.signedIn) {

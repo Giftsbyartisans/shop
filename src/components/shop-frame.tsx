@@ -99,6 +99,7 @@ export function ShopFooter({ content }: { content: ShopContent }) {
         </div>
         <div className="footer-contact">
           <h3>Get in touch</h3>
+          {content.businessName && <p>{content.businessName}</p>}
           {content.contactEmail && (
             <Link href={"mailto:" + content.contactEmail}>
               {content.contactEmail}

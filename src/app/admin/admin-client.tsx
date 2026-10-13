@@ -16,6 +16,7 @@ import {
   markInquiryRead,
 } from "@/lib/backend";
 import AdminSettings from "@/components/admin-settings";
+import AdminPayPal from "@/components/admin-paypal";
 import ReviewTransfer from "@/components/review-transfer";
 import ManagerIcon from "@/components/manager-icon";
 import ListingEditor from "@/components/listing-editor";
@@ -418,7 +419,7 @@ export default function AdminClient() {
     "Pages & policies",
     "Admin preferences",
   ];
-  const nestedSettings = ["Settings", "Sale", "Social & footer", "Pages & policies", "Admin preferences"];
+  const nestedSettings = ["Settings", "PayPal", "Sale", "Social & footer", "Pages & policies", "Admin preferences"];
   const tabs = ["Listings", "Messages", ...settingsTabs.filter(name => !nestedSettings.includes(name))];
   const isSettings = settingsTabs.includes(tab) || tab === "Settings";
   return (
@@ -532,6 +533,8 @@ export default function AdminClient() {
             >
               {listingEditor}
             </AdminListings>
+          ) : tab === "PayPal" ? (
+            <AdminPayPal />
           ) : tab === "Admin preferences" ? (
             <>
               <label className="check">
