@@ -1,6 +1,6 @@
 import "server-only";
 import outputs from "../../amplify_outputs.json";
-import { emptyPayPalSettings, type PayPalSettings } from "./paypal-settings";
+import { activePayPalCredentials, automaticPayPalEnvironment, emptyPayPalSettings, type PayPalSettings } from "./paypal-settings";
 import { decryptPayPalSettings, encryptPayPalSettings } from "./paypal-encryption";
 
 async function graphql(token: string, query: string, variables: Record<string, unknown>) {
@@ -32,4 +32,8 @@ export async function writePayPalSettings(settings: PayPalSettings, token: strin
   const inputType = existing ? "UpdatePaymentSettingsInput!" : "CreatePaymentSettingsInput!";
   await graphql(token, `mutation SavePayPalSettings($input: ${inputType}) { ${action}PaymentSettings(input: $input) { id } }`,
     { input: { id: "paypal", encryptedContent } });
+}
+
+export async function readActivePayPalCredentials(token: string) {
+  return activePayPalCredentials(await readPayPalSettings(token), automaticPayPalEnvironment(process.env.NODE_ENV));
 }

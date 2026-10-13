@@ -1,6 +1,6 @@
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import outputs from "../../../../../amplify_outputs.json";
-import { paypalSettingsSummary, updatePayPalSettings } from "@/lib/paypal-settings";
+import { automaticPayPalEnvironment, paypalSettingsSummary, updatePayPalSettings } from "@/lib/paypal-settings";
 import { readPayPalSettings, writePayPalSettings } from "@/lib/server-paypal-settings";
 
 const verifier = CognitoJwtVerifier.create({ userPoolId: outputs.auth.user_pool_id,
@@ -14,7 +14,7 @@ async function authorize(request: Request) {
 export async function GET(request: Request) {
   const token = await authorize(request);
   if (!token) return Response.json({ error: "Admin sign-in required." }, { status: 401, headers });
-  try { return Response.json(paypalSettingsSummary(await readPayPalSettings(token)), { headers }); }
+  try { return Response.json(paypalSettingsSummary(await readPayPalSettings(token), automaticPayPalEnvironment(process.env.NODE_ENV)), { headers }); }
   catch { return Response.json({ error: "PayPal settings could not be loaded. Configure PAYPAL_ENCRYPTION_KEY and deploy the PaymentSettings backend model." }, { status: 503, headers }); }
 }
 export async function PUT(request: Request) {
@@ -34,6 +34,6 @@ export async function PUT(request: Request) {
   catch (error) { return Response.json({ error: error instanceof Error ? error.message : "Invalid settings." }, { status: 400, headers }); }
   try {
     await writePayPalSettings(settings, token);
-    return Response.json(paypalSettingsSummary(settings), { headers });
+    return Response.json(paypalSettingsSummary(settings, automaticPayPalEnvironment(process.env.NODE_ENV)), { headers });
   } catch { return Response.json({ error: "PayPal settings could not be saved. Check server storage permissions." }, { status: 503, headers }); }
 }

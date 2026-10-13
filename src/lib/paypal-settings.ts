@@ -1,12 +1,20 @@
 export const paypalEnvironments = ["sandbox", "live"] as const;
 export type PayPalEnvironment = typeof paypalEnvironments[number];
 export type PayPalCredentials = { clientId: string; secret: string };
-export type PayPalSettings = { environment: PayPalEnvironment; sandbox: PayPalCredentials; live: PayPalCredentials };
+export type PayPalSettings = { sandbox: PayPalCredentials; live: PayPalCredentials };
 export function emptyPayPalSettings(): PayPalSettings {
-  return { environment: "sandbox", sandbox: { clientId: "", secret: "" }, live: { clientId: "", secret: "" } };
+  return { sandbox: { clientId: "", secret: "" }, live: { clientId: "", secret: "" } };
 }
-export function paypalSettingsSummary(settings: PayPalSettings) {
-  return { environment: settings.environment,
+export function automaticPayPalEnvironment(nodeEnv: string | undefined): PayPalEnvironment {
+  return nodeEnv === "production" ? "live" : "sandbox";
+}
+export function activePayPalCredentials(settings: PayPalSettings, environment: PayPalEnvironment) {
+  const credentials = settings[environment];
+  if (!credentials.clientId || !credentials.secret) throw new Error(`PayPal ${environment} credentials are not configured.`);
+  return { environment, ...credentials };
+}
+export function paypalSettingsSummary(settings: PayPalSettings, environment: PayPalEnvironment) {
+  return { environment, configured: Boolean(settings[environment].clientId && settings[environment].secret),
     sandbox: { clientId: settings.sandbox.clientId, hasSecret: Boolean(settings.sandbox.secret) },
     live: { clientId: settings.live.clientId, hasSecret: Boolean(settings.live.secret) } };
 }
@@ -14,9 +22,7 @@ export type PayPalSettingsSummary = ReturnType<typeof paypalSettingsSummary>;
 export function updatePayPalSettings(current: PayPalSettings, input: unknown): PayPalSettings {
   if (!input || typeof input !== "object") throw new Error("Invalid PayPal settings.");
   const body = input as Record<string, unknown>;
-  if (body.environment !== "sandbox" && body.environment !== "live") throw new Error("Choose sandbox or live mode.");
-  const next = structuredClone(current);
-  next.environment = body.environment;
+  const next: PayPalSettings = { sandbox: { ...current.sandbox }, live: { ...current.live } };
   for (const environment of paypalEnvironments) {
     const values = body[environment];
     if (!values || typeof values !== "object") throw new Error("Enter credentials for each environment.");
@@ -29,6 +35,5 @@ export function updatePayPalSettings(current: PayPalSettings, input: unknown): P
     next[environment] = { clientId, secret: clientId ? secret || current[environment].secret : "" };
     if (Boolean(next[environment].clientId) !== Boolean(next[environment].secret)) throw new Error("Enter both Client ID and Secret, or leave both empty.");
   }
-  if (next.environment === "live" && !next.live.clientId) throw new Error("Save live credentials before selecting live mode.");
   return next;
 }

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
-import { paypalEnvironments, type PayPalEnvironment, type PayPalSettingsSummary } from "@/lib/paypal-settings";
+import { paypalEnvironments, type PayPalSettingsSummary } from "@/lib/paypal-settings";
 
 async function requestSettings(body?: unknown): Promise<PayPalSettingsSummary> {
   const session = await fetchAuthSession();
@@ -43,7 +43,7 @@ export default function AdminPayPal() {
     if (!settings) return;
     setBusy(true); setMessage(""); setFailed(false);
     try {
-      const result = await requestSettings({ environment: settings.environment,
+      const result = await requestSettings({
         sandbox: { clientId: settings.sandbox.clientId, secret: secrets.sandbox },
         live: { clientId: settings.live.clientId, secret: secrets.live } });
       setSettings(result); setSecrets({ sandbox: "", live: "" }); setMessage("PayPal settings saved.");
@@ -55,9 +55,9 @@ export default function AdminPayPal() {
     <p><a href="https://developer.paypal.com/dashboard/applications" target="_blank" rel="noopener noreferrer">Get credentials from PayPal Apps & Credentials ↗</a></p>
     {message && <p role={failed ? "alert" : "status"}>{message}</p>}
     {!settings ? <button type="button" disabled={busy} onClick={load}>{busy ? "Loading…" : "Reload PayPal settings"}</button> : <fieldset disabled={busy}>
-      <label>Environment<select value={settings.environment} onChange={event => setSettings({ ...settings, environment: event.target.value as PayPalEnvironment })}>
-        <option value="sandbox">Sandbox (testing)</option><option value="live">Live</option>
-      </select></label>
+      <p role="status"><strong>Active mode: {settings.environment === "sandbox" ? "Sandbox (testing)" : "Live"}</strong></p>
+      <p className="manager-help">Selected automatically by the server: local development uses sandbox; production builds use live credentials.</p>
+      {!settings.configured && <p role="status">Enter {settings.environment} credentials to configure payments for this environment.</p>}
       {paypalEnvironments.map(environment => <section className="manager-entry" key={environment}>
         <h2>{environment === "sandbox" ? "Sandbox credentials" : "Live credentials"}</h2>
         <label>Client ID (API key)<input autoComplete="off" spellCheck={false} maxLength={1024} value={settings[environment].clientId}

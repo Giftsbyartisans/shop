@@ -48,7 +48,13 @@ the replacement setup. No deletion of AWS secrets is performed by this change.
 
 Blank secret fields keep the saved secret. Changing a Client ID requires its new
 secret. Clearing the Client ID and leaving the secret blank removes that pair.
-Live mode requires live credentials. Get credentials from
+The server selects credentials automatically from `NODE_ENV`: `npm run dev`
+uses sandbox; production builds served with `npm start` and hosted production
+deployments use live. A local `npm start` is a production server and uses live too.
+The admin displays the active mode and has no manual mode selector. Existing saved
+mode values and mode fields sent by clients are ignored. If the active pair is
+missing, payments remain unconfigured; there is no fallback to the other pair.
+Both pairs may be saved independently, including sandbox alone. Get credentials from
 https://developer.paypal.com/dashboard/applications.
 
 This prepares configuration; customer payment buttons and server order creation,
