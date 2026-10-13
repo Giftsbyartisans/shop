@@ -1,4 +1,5 @@
 "use client";
+import { backendFaviconUrl } from "@/lib/backend-api";
 import Link from "next/link";
 import ShopSkeleton from "./shop-skeleton";
 import { useRouter } from "next/navigation";
@@ -27,7 +28,7 @@ function ListingPrices({ item, content, detail = false }: { item: Listing; conte
     <>
       <div className="listing-prices">
         <strong className={discounted ? "discount-price" : undefined}>{detail && discounted && <span className="listing-price-now">Now </span>}{formatPrice(price)}</strong>
-        {discounted && <span className="listing-was"><del>{formatPrice(item.price)}</del> <span className="listing-percent-off">({percentOff}% off)</span></span>}
+        {discounted && <span className="listing-was"><del>{formatPrice(item.price)}</del> <span className="listing-percent-off">{percentOff}% off</span></span>}
       </div>
       <Link className="free-delivery" href="/policies/delivery">Free delivery</Link>
     </>
@@ -60,7 +61,6 @@ function Card({ item, content, showcase = false, eager = false }: { item: Listin
       <h3 className="listing-name"><Link href={"/listing/" + item.id}>{item.title}</Link></h3>
       <div className="card-price-row">
         <div><ListingPrices item={item} content={content} /></div>
-        <div className="card-mobile-favorite"><ProductShopping id={item.id} compact mode="favorite" /></div>
       </div>
       <ProductShopping id={item.id} compact />
     </article>
@@ -202,8 +202,8 @@ export default function Storefront({
   useEffect(() => {
     const icons = document.head.querySelectorAll<HTMLLinkElement>('link[rel="icon"]');
     const url = content.favicon.startsWith("s3:media/")
-      ? `/api/favicon?source=${encodeURIComponent(content.favicon)}`
-      : "/api/favicon";
+      ? backendFaviconUrl(content.favicon)
+      : backendFaviconUrl();
     for (const icon of icons) {
       icon.href = url;
       icon.sizes.value = "48x48";
@@ -451,7 +451,6 @@ export default function Storefront({
                   <div className="listing-detail-price"><ListingPrices item={item} content={content} detail /></div>
                 </div>
                 <p className="listing-maker">Handmade by GiftsByArtisans</p>
-                <ProductShopping id={item.id} mode="cart" item={resolvePersonalization(item, content)} />
                 <div className="listing-mobile-facts">
                   <Link className="free-delivery" href="/policies/delivery">Free delivery</Link>
                   {content.reviews.length > 0 && <div>
@@ -459,6 +458,7 @@ export default function Storefront({
                     <a href="#listing-testimonials">{content.reviews.length} customer {content.reviews.length === 1 ? "story" : "stories"}</a>
                   </div>}
                 </div>
+                <ProductShopping id={item.id} mode="cart" item={resolvePersonalization(item, content)} />
                 {(item.etsyUrl || item.pinterestUrl) && (
                   <div className="listing-detail-buy">
                     {item.etsyUrl && (

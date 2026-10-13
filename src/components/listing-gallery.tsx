@@ -39,7 +39,7 @@ export default function ListingGallery({ item }: { item: Listing }) {
       });
   };
   return (
-    <div>
+    <div className="listing-gallery">
       <div className="product-photo-carousel" role="region" aria-label="Product media" aria-roledescription="carousel"
         onKeyDown={event => {
           if (event.target !== event.currentTarget) return;
@@ -59,7 +59,7 @@ export default function ListingGallery({ item }: { item: Listing }) {
           }}>
           {media[active].type === "image" ? (
             <ShopImage key={media[active].src} className="demo-detail-image" src={media[active].src} alt={`${item.title} — ${media[active].label}`}
-              loading="eager" fetchPriority="high" sizes="(max-width: 768px) 90vw, 50vw" />
+              loading="eager" fetchPriority="high" sizes="(max-width: 768px) 100vw, 50vw" />
           ) : (
             <ShopVideo key={media[active].src} src={media[active].src} className="product-photo-video" />
           )}

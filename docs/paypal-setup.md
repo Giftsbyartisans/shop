@@ -1,62 +1,32 @@
-# PayPal admin credentials
+# PayPal credentials
 
-Admin → Settings → PayPal accepts separate sandbox and live Client IDs and Secrets.
-The Next.js server encrypts the entire configuration using AES-256-GCM with a fresh
-random nonce for each save. Only ciphertext is stored in the Amplify PaymentSettings
-model, which is restricted to the Admins group. The admin API returns Client IDs and
-secret-presence flags, never saved secrets. Public website settings remain separate.
-AWS Secrets Manager is no longer used.
+Admin → Settings → PayPal saves separate sandbox and live Client IDs/Secrets through
+the Lambda backend. The Lambda encrypts the entire configuration using AES-256-GCM
+with a fresh nonce on every save. DynamoDB PaymentSettings stores ciphertext only;
+public ShopSettings and media snapshots contain no payment credentials. The API
+verifies Cognito Admins membership and returns only Client IDs and secret-presence
+flags. AWS Secrets Manager is not used.
 
-## Local setup
+Deploy the backend and regenerate outputs before using the admin form. The frontend
+requires `custom.backendApiUrl`. See [Lambda deployment](lambda-backend.md).
 
-A random `PAYPAL_ENCRYPTION_KEY` has been generated in the ignored `.env.local` file.
-Do not share this file or commit it. Restart `npm run dev` after changing the key.
-This checkout uses the production backend for its existing catalog. The PayPal
-model was deployed to the development sandbox only. To use PayPal configuration
-alongside the production catalog, deploy the model through the production Amplify
-pipeline and regenerate the matching outputs. Do not run the sandbox command in
-this checkout to restore production data: it replaces the backend connection.
+Set `PAYPAL_ENCRYPTION_KEY` in the Amplify build environment to exactly 64 hexadecimal
+characters (32 bytes); the backend injects it into Lambda's private environment.
+Never prefix it with `NEXT_PUBLIC_`. For sandbox deployment, pass the existing key
+from ignored `.env.local` to the deployment process; Next.js itself no longer needs
+this key. The production backend connection must stay in root amplify_outputs.json;
+sandbox outputs belong in `.amplify/sandbox-outputs`.
 
-For a separate development checkout, deploy using the sandbox workflow:
+Preserve the key used for existing encrypted records. Changing or losing it makes
+saved credentials unreadable. Keep a secure backup; rotate by re-encrypting existing
+records, or remove the encrypted record and re-enter credentials. Separate databases
+may use different keys. No AWS secrets are automatically deleted or migrated.
 
-```sh
-npx ampx sandbox --once --profile shop-dev
-```
+The admin form's mode is automatic: local `npm run dev` requests sandbox mode;
+production builds request live. Only a backend deployed for production `main` can
+use live mode. Both credential pairs can be saved independently; blank secret fields
+retain existing secrets, changing a Client ID requires its matching new secret,
+and clearing a Client ID with a blank secret removes that pair.
 
-Then open Admin → Settings → PayPal and enter the PayPal app credentials.
-
-To restore this checkout's production connection after a sandbox deployment:
-
-```sh
-npx ampx generate outputs --app-id d3r1sr91624ks6 --branch main --profile shop-dev
-```
-
-## Production setup
-
-Deploy the updated Amplify backend, then set `PAYPAL_ENCRYPTION_KEY` in your hosting
-server environment. It must contain exactly 64 hexadecimal characters (32 bytes).
-Never prefix it with `NEXT_PUBLIC_`. Use a different key for a separate production
-database. A new key can be generated using `openssl rand -hex 32`.
-
-Keep a secure backup of the key. Changing or losing it makes existing encrypted
-credentials unreadable. To rotate, re-encrypt the stored record with the new key or
-remove the existing PaymentSettings record and re-enter PayPal credentials.
-
-If credentials were previously saved in Secrets Manager, re-enter them in the admin
-panel; there is no automatic migration. Remove the old secret only after verifying
-the replacement setup. No deletion of AWS secrets is performed by this change.
-
-Blank secret fields keep the saved secret. Changing a Client ID requires its new
-secret. Clearing the Client ID and leaving the secret blank removes that pair.
-The server selects credentials automatically from `NODE_ENV`: `npm run dev`
-uses sandbox; production builds served with `npm start` and hosted production
-deployments use live. A local `npm start` is a production server and uses live too.
-The admin displays the active mode and has no manual mode selector. Existing saved
-mode values and mode fields sent by clients are ignored. If the active pair is
-missing, payments remain unconfigured; there is no fallback to the other pair.
-Both pairs may be saved independently, including sandbox alone. Get credentials from
-https://developer.paypal.com/dashboard/applications.
-
-This prepares configuration; customer payment buttons and server order creation,
-capture, and reconciliation remain follow-up work. Server checkout code will need
-a restricted server authorization path to read this model without an admin session.
+Create PayPal credentials at https://developer.paypal.com/dashboard/applications.
+Customer PayPal order creation, capture and reconciliation remain follow-up work.

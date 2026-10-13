@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { backendApiUrl } from "@/lib/backend-api";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { paypalEnvironments, type PayPalSettingsSummary } from "@/lib/paypal-settings";
 
@@ -7,12 +8,12 @@ async function requestSettings(body?: unknown): Promise<PayPalSettingsSummary> {
   const session = await fetchAuthSession();
   const token = session.tokens?.accessToken.toString();
   if (!token) throw new Error("Admin sign-in required.");
-  const response = await fetch("/api/admin/paypal", { method: body ? "PUT" : "GET", cache: "no-store",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+  const response = await fetch(backendApiUrl("/admin/paypal"), { method: body ? "PUT" : "GET", cache: "no-store",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-PayPal-Mode": process.env.NODE_ENV === "production" ? "live" : "sandbox" },
     ...(body ? { body: JSON.stringify(body) } : {}) });
   if (!response.headers.get("content-type")?.includes("application/json")) {
     if (response.status === 404) throw new Error("The PayPal settings API was not found (404). Restart the development server or deploy the updated website.");
-    throw new Error(`The PayPal settings API returned a web page instead of JSON (HTTP ${response.status}). Check the server logs and deployment for /api/admin/paypal.`);
+    throw new Error(`The PayPal settings API returned a web page instead of JSON (HTTP ${response.status}). Check the server logs and deployment for the Lambda backend.`);
   }
   let result;
   try { result = await response.json(); }
@@ -56,7 +57,7 @@ export default function AdminPayPal() {
     {message && <p role={failed ? "alert" : "status"}>{message}</p>}
     {!settings ? <button type="button" disabled={busy} onClick={load}>{busy ? "Loading…" : "Reload PayPal settings"}</button> : <fieldset disabled={busy}>
       <p role="status"><strong>Active mode: {settings.environment === "sandbox" ? "Sandbox (testing)" : "Live"}</strong></p>
-      <p className="manager-help">Selected automatically by the server: local development uses sandbox; production builds use live credentials.</p>
+      <p className="manager-help">Selected automatically by the server: this local frontend uses sandbox; production uses live credentials.</p>
       {!settings.configured && <p role="status">Enter {settings.environment} credentials to configure payments for this environment.</p>}
       {paypalEnvironments.map(environment => <section className="manager-entry" key={environment}>
         <h2>{environment === "sandbox" ? "Sandbox credentials" : "Live credentials"}</h2>

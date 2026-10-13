@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { backendApiUrl } from "@/lib/backend-api";
+import type { CartQuote } from "@/lib/cart-quote";
+import { useEffect, useState } from "react";
 import type { Listing } from "@/lib/catalog";
 import { formatPrice, listingPrice } from "@/lib/catalog";
 import type { ShopContent } from "@/lib/content";
@@ -20,7 +22,29 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
   const [error, setError] = useState("");
   const selected: CartItem[] = kind === "cart" ? state.cart : state.favorites.map(id => ({ id, quantity: 1 }));
   const catalog = new Map(listings.filter(item => item.published).map(item => [item.id, resolvePersonalization(item, content)]));
-  const total = selected.reduce((sum, entry) => { const item = catalog.get(entry.id); return sum + (item ? (Math.round(listingPrice(item, content.saleEnabled, content.salePercent) * 100) + Math.round((entry.personalization ? item.personalizationPrice ?? 0 : 0) * 100)) * entry.quantity : 0); }, 0) / 100;
+  const quoteKey = JSON.stringify({ items: selected, sale: [content.saleEnabled, content.salePercent], listings });
+  const [quoted, setQuoted] = useState<{ key: string; quote: CartQuote } | null>(null);
+  const [quoteError, setQuoteError] = useState("");
+  const quote = quoted?.key === quoteKey ? quoted.quote : null;
+  useEffect(() => {
+    if (kind !== "cart" || !ready || !selected.length) return;
+    const controller = new AbortController();
+    setQuoteError("");
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await fetch(backendApiUrl("/cart/quote"), { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: JSON.parse(quoteKey).items }), signal: controller.signal });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || "Could not load cart prices.");
+          if (!controller.signal.aborted) setQuoted({ key: quoteKey, quote: result });
+        } catch (cause) {
+          if (!controller.signal.aborted) setQuoteError(cause instanceof Error ? cause.message : "Could not load cart prices.");
+        }
+      })();
+    }, 150);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [kind, ready, quoteKey]);
   async function quantity(id: string, value: number) {
     try { await updateShopping(current => changeQuantity(current, id, value)); setError(""); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not update your cart."); }
@@ -31,7 +55,7 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
   }
   return <main className="shop shopping-page">
     <h1>{kind === "cart" ? "Your cart" : "Your favorites"}</h1>
-    <p className="muted">{kind === "cart" && cart.signedIn ? "Your cart is saved to your account." : kind === "favorites" && favorites.signedIn ? "Favorites are saved to your account." : "Saved in this browser."} Prices reflect the current shop catalog.</p>
+    {kind === "favorites" && <p className="muted">{favorites.signedIn ? "Favorites are saved to your account." : "Saved in this browser."} Prices reflect the current shop catalog.</p>}
     {kind === "cart" && cart.error && <p role="alert">{cart.error} <button onClick={() => refreshCart()}>Try again</button></p>}
     {kind === "favorites" && favorites.loading && <p role="status">Loading favorites…</p>}
     {kind === "favorites" && favorites.error && <p role="alert">{favorites.error} <button onClick={() => refreshFavorites()}>Try again</button></p>}
@@ -53,12 +77,17 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
           {kind === "favorites" && item && <ProductShopping id={item.id} compact />}
         </div>
         <div className="shopping-item-actions">
-          {kind === "cart" && item && <strong>{formatPrice((Math.round(price * 100) + Math.round(fee * 100)) * entry.quantity / 100)}</strong>}
+          {kind === "cart" && item && <strong>{quote ? formatPrice(quote.lines.find(line => line.key === lineKey)?.total ?? 0) : "—"}</strong>}
           <button className="shopping-remove" onClick={() => remove(kind === "cart" ? lineKey : entry.id)} aria-label={`Remove ${item?.title || "unavailable product"} from ${kind}`} title="Remove product">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" /></svg>
           </button>
         </div>
       </article>;
-    })}</div>{kind === "cart" && <aside className="shopping-summary"><h2>Order summary</h2><p><span>Subtotal</span><strong>{formatPrice(total)}</strong></p><p className="muted">Checkout is coming soon. You can still purchase individual products through their Etsy links.</p><Link href="/collection">Continue shopping →</Link></aside>}</div>}
+    })}</div>{kind === "cart" && <aside className="shopping-summary"><h2>Order summary</h2>
+      {quote ? <><p className="shopping-summary-row"><span>MSRP</span><strong>{formatPrice(quote.subtotal)}</strong></p>
+      <p className="shopping-summary-row"><span>Discount</span><strong>{quote.discount > 0 ? "−" : ""}{formatPrice(quote.discount)}</strong></p>
+      <p className="shopping-summary-row"><span>Shipping charges</span><strong>{quote.shipping === 0 ? "Free" : formatPrice(quote.shipping)}</strong></p>
+      <p className="shopping-summary-row shopping-summary-total"><span>Total</span><strong>{formatPrice(quote.total)}</strong></p></> : <p role={quoteError ? "alert" : "status"}>{quoteError || "Calculating totals…"}</p>}
+      <p className="muted">Checkout is coming soon. You can still purchase individual products through their Etsy links.</p><Link href="/collection">Continue shopping →</Link></aside>}</div>}
   </main>;
 }

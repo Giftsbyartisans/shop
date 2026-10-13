@@ -1,3 +1,4 @@
+import { backendFaviconUrl } from "@/lib/backend-api";
 import type { Metadata } from "next";
 import Script from "next/script";
 import localFont from "next/font/local";
@@ -13,7 +14,7 @@ const googleSansFlex = localFont({
 
 export const metadata: Metadata = {
   title: "GiftsByArtisans | Thoughtful products",
-  icons: { icon: { url: "/api/favicon", sizes: "48x48" } },
+  icons: { icon: { url: backendFaviconUrl(), sizes: "48x48" } },
   description: "Discover products with a personal touch. Made for thoughtful giving.",
 };
 

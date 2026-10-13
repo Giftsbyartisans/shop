@@ -100,3 +100,18 @@ Saved listing sale prices display independently of the storewide sale switch. Th
 Removing or replacing saved category images, banners, logos, or favicons cleans up their unused S3 upload folders when website changes are saved. Files referenced by another listing or website field are preserved. Cleanup failures stop the save so it can be retried. Removing unsaved uploads does not trigger this saved-record cleanup.
 
 The public sitemap is available at `/sitemap.xml` and includes public pages, categories with published products, and published listings. `/robots.txt` advertises the sitemap and excludes admin and API routes. Set the Amplify Hosting environment variable `SITE_URL` to your canonical HTTPS website address (for example, `https://your-domain.com`) so sitemap links always use your preferred domain. Without it, the requesting host is used. Catalog entries refresh through the existing public catalog cache.
+
+## Lambda backend
+
+Custom API operations now run in the Amplify-managed `shop-api` Lambda through API
+Gateway: PayPal settings, Etsy image import, favicon delivery, and authoritative
+cart quotes. Next.js `/api` handlers have been removed. Managed AppSync CRUD,
+Cognito auth, DynamoDB, S3, and CloudFront remain in use. The frontend reads
+`custom.backendApiUrl` from matching generated outputs. See
+[deployment and permissions](docs/lambda-backend.md).
+
+The tracked `amplify.yml` deploys the branch backend before the Next.js build.
+Configure `PAYPAL_ENCRYPTION_KEY` in the Amplify build environment so the Lambda
+retains access to previously encrypted credentials. Sandbox outputs stay separate
+from production. These changes require production backend deployment before the
+new frontend is served.

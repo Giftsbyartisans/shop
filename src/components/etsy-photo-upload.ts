@@ -1,4 +1,5 @@
 "use client";
+import { backendApiUrl } from "@/lib/backend-api";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { getProperties } from "aws-amplify/storage";
 import type { Listing } from "@/lib/catalog";
@@ -23,7 +24,7 @@ export async function createEtsyPhotoCopier() {
                 } catch {
                   // The authenticated API can verify an existing CDN copy when S3 HEAD fails.
                 }
-                const response = await fetch("/api/import-image", {
+                const response = await fetch(backendApiUrl("/import-image"), {
                   method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                   body: JSON.stringify({ url: source, listingId: listing.id }), signal: AbortSignal.timeout(25000),
                 });
@@ -33,6 +34,12 @@ export async function createEtsyPhotoCopier() {
                 }
                 if (response.headers.get("content-type")?.includes("application/json")) {
                   const result = await response.json();
+                  if (result.sourceUrl) {
+                    const imageResponse = await fetch(result.sourceUrl, { signal: AbortSignal.timeout(15000) });
+                    if (!imageResponse.ok) throw new Error("Imported photo could not be retrieved.");
+                    const blob = await imageResponse.blob();
+                    return uploadImage(new File([blob], filename, { type: blob.type }), context, uploadId);
+                  }
                   if (result.path !== `s3:${path}`) throw new Error("Unexpected uploaded photo path.");
                   return result.path;
                 }

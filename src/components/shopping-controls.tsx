@@ -48,7 +48,7 @@ export function ProductShopping({ id, compact = false, mode = "both", item, show
     try {
       if (kind === "favorite") await setFavorite(id, !favorite);
       else await updateShopping(current => addCartItem(current, id, item?.personalizationEnabled ? personalization : "", quantity));
-      setNotice(kind === "cart" ? "Added to cart" : showFavoriteNotice ? favorite ? "Removed from favorites" : "Saved to favorites" : "");
+      setNotice(kind === "favorite" && showFavoriteNotice ? favorite ? "Removed from favorites" : "Saved to favorites" : "");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save this item. Please try again."); }
     finally { setBusy(false); }
   }
