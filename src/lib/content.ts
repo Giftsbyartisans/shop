@@ -1,4 +1,6 @@
 export type ShopContent = {
+  personalizations: { id: string; name: string; heading: string; text: string; price?: number }[];
+  defaultPersonalizationId: string;
   bestSellerIds: string[];
   favicon: string;
   saleEnabled: boolean;
@@ -25,6 +27,8 @@ export type ShopContent = {
   policies: { id: string; title: string; text: string }[];
 };
 export const defaultContent: ShopContent = {
+  personalizations: [],
+  defaultPersonalizationId: "",
   bestSellerIds: [],
   favicon: "",
   saleEnabled: false,
@@ -80,6 +84,14 @@ export const defaultContent: ShopContent = {
 };
 
 export function validateContent(content: ShopContent) {
+  if (!Array.isArray(content.personalizations)) throw new Error("Invalid personalization library.");
+  const templateIds = new Set<string>();
+  for (const template of content.personalizations) {
+    if (!template || typeof template.id !== "string" || !template.id || templateIds.has(template.id) || typeof template.name !== "string" || !template.name.trim() || template.name.length > 100 || typeof template.heading !== "string" || template.heading.length > 150 || typeof template.text !== "string" || template.text.length > 2000) throw new Error("Each personalization needs a unique ID and a name, with a valid heading and instructions.");
+    if (template.price !== undefined && (!Number.isFinite(template.price) || template.price < 0)) throw new Error("Personalization prices must be zero or greater.");
+    templateIds.add(template.id);
+  }
+  if (content.defaultPersonalizationId && !templateIds.has(content.defaultPersonalizationId)) throw new Error("Select a default personalization from the library.");
   if (!Number.isInteger(content.testimonialIntervalSeconds) || content.testimonialIntervalSeconds < 0 || content.testimonialIntervalSeconds > 300)
     throw new Error("Testimonial interval must be a whole number from 0 to 300 seconds.");
   if (typeof content.adminDesktopOnly !== "boolean") throw new Error("Desktop-only admin setting must be a checkbox value.");

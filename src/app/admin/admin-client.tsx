@@ -408,6 +408,7 @@ export default function AdminClient() {
       </main>
     );
   const settingsTabs = [
+    "Personalization",
     "Brand & announcement",
     "Banner Image",
     "Categories",

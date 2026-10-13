@@ -10,6 +10,12 @@ export type Listing = {
   etsyUrl?: string;
   pinterestUrl?: string;
   salePrice?: number;
+  personalizationEnabled?: boolean;
+  personalizationMode?: "default" | "template" | "custom" | "none";
+  personalizationTemplateId?: string;
+  personalizationHeading?: string;
+  personalizationText?: string;
+  personalizationPrice?: number;
   images?: string[];
   videos?: string[];
 };
@@ -105,6 +111,10 @@ export function listingPrice(
     : item.price);
 }
 export function validateListingMedia(item: Listing) {
+  if (item.personalizationMode && !["default", "template", "custom", "none"].includes(item.personalizationMode)) throw new Error("Choose a valid personalization option.");
+  if (item.personalizationMode === "template" && !item.personalizationTemplateId) throw new Error("Select a personalization template.");
+  if (item.personalizationPrice !== undefined && (!Number.isFinite(item.personalizationPrice) || item.personalizationPrice < 0)) throw new Error("Personalization price must be zero or greater.");
+  if ((item.personalizationHeading?.length ?? 0) > 150 || (item.personalizationText?.length ?? 0) > 2000) throw new Error("Personalization heading or instructions are too long.");
   if (
     item.salePrice !== undefined &&
     (!Number.isFinite(item.salePrice) ||

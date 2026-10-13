@@ -9,10 +9,18 @@ const listingFields = () => ({
   etsyUrl: a.string(),
   pinterestUrl: a.string(),
   salePrice: a.float(),
+  personalizationEnabled: a.boolean(),
+  personalizationMode: a.enum(["default", "template", "custom", "none"]),
+  personalizationTemplateId: a.string(),
+  personalizationHeading: a.string(),
+  personalizationText: a.string(),
+  personalizationPrice: a.float(),
   images: a.string().array(),
   videos: a.string().array(),
 });
 const schema = a.schema({
+  CustomerCart: a.model({ items: a.json().required() })
+    .authorization(allow => [allow.owner()]),
   CustomerFavorite: a.model({ listingId: a.string().required() })
     .authorization(allow => [allow.owner()]),
   CustomerPreferences: a.model({

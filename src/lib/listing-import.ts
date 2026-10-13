@@ -107,6 +107,12 @@ export function importListings(text: string, filename: string): Listing[] {
       ...links,
       images: images.length ? images : [image],
       videos,
+      personalizationEnabled: record.personalizationenabled === true || record.personalizationenabled === "true",
+      personalizationMode: record.personalizationmode ? String(record.personalizationmode) as Listing["personalizationMode"] : undefined,
+      personalizationTemplateId: String(record.personalizationtemplateid ?? ""),
+      personalizationHeading: String(record.personalizationheading ?? ""),
+      personalizationText: String(record.personalizationtext ?? ""),
+      personalizationPrice: record.personalizationprice === undefined || record.personalizationprice === null || record.personalizationprice === "" ? undefined : Number(record.personalizationprice),
       salePrice:
         salePrice === undefined || salePrice === null || salePrice === ""
           ? undefined

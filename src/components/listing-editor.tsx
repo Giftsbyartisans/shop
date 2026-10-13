@@ -486,6 +486,20 @@ export default function ListingEditor({
             }
           />
         </label>
+        <label>
+          Personalization
+          <select value={draft.personalizationMode || (draft.personalizationEnabled ? "custom" : "default")} onChange={event => setDraft({ ...draft, personalizationMode: event.target.value as Listing["personalizationMode"] })}>
+            <option value="default">Use shop default</option><option value="template">Choose from library</option><option value="custom">Custom for this listing</option><option value="none">No personalization</option>
+          </select>
+        </label>
+        {draft.personalizationMode === "template" && <label>Personalization template<select value={draft.personalizationTemplateId ?? ""} onChange={event => setDraft({ ...draft, personalizationTemplateId: event.target.value })}><option value="">Select a template</option>{(content.personalizations ?? []).map(template => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>}
+        {(draft.personalizationMode === "custom" || (!draft.personalizationMode && draft.personalizationEnabled)) && <section className="listing-personalization-settings">
+          <h3>Personalization</h3>
+          <label>Heading<input value={draft.personalizationHeading ?? ""} maxLength={150} placeholder="Want to engrave something?" onChange={event => setDraft({ ...draft, personalizationHeading: event.target.value })} /></label>
+          <label>Instructions<textarea value={draft.personalizationText ?? ""} maxLength={2000} rows={3} placeholder="Tell us what you would like engraved." onChange={event => setDraft({ ...draft, personalizationText: event.target.value })} /></label>
+          <label>Price per item (USD)<input type="number" min="0" step="0.01" value={draft.personalizationPrice ?? ""} placeholder="Free" onChange={event => setDraft({ ...draft, personalizationPrice: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
+          <small>Leave the price blank for free personalization. The fee applies only when the customer enters personalization text.</small>
+        </section>}
         <label className="check">
           <input
             type="checkbox"

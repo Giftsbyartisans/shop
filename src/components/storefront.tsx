@@ -14,6 +14,7 @@ import TestimonialCarousel from "./testimonial-carousel";
 import { policyBody } from "@/lib/policy-text";
 import { ProductShopping } from "./shopping-controls";
 import ShoppingPage from "./shopping-page";
+import { resolvePersonalization } from "@/lib/personalization";
 import ShopImage from "./shop-image";
 import { formatPrice, listingPrice, type Listing } from "@/lib/catalog";
 import { listListings, submitInquiry, loadShopContent } from "@/lib/backend";
@@ -321,12 +322,14 @@ export default function Storefront({
       ) : page === "collection" ? (
         <main className={`shop${categoryOnly || bestSellersOnly ? ` collection-full-page${categoryOnly ? " collection-category-page" : ""}` : ""}`}>
           <section className="collection">
-            <p className="eyebrow">CURATED WITH CARE</p>
-            <div className="collection-heading-row">
-            <h1 className="catalog-heading">{bestSellersOnly ? "Best sellers" : categoryOnly || "Collections"}</h1>
+            <div className="collection-eyebrow-row">
+              <p className="eyebrow">CURATED WITH CARE</p>
               <p className="collection-product-count" role="status">
                 {categoryOnly ? filtered.length : category || query ? `${filtered.length} of ${visible.length}` : visible.length} {(categoryOnly ? filtered.length : visible.length) === 1 ? "product" : "products"}
               </p>
+            </div>
+            <div className="collection-heading-row">
+            <h1 className="catalog-heading">{bestSellersOnly ? "Best sellers" : categoryOnly || "Collections"}</h1>
             <div className="collection-toolbar">
               <div className="catalog-filters collection-toolbar-filters">
               {!categoryOnly && (
@@ -445,7 +448,7 @@ export default function Storefront({
                   <div className="listing-detail-price"><ListingPrices item={item} content={content} detail /></div>
                 </div>
                 <p className="listing-maker">Handmade by GiftsByArtisans</p>
-                <ProductShopping id={item.id} mode="cart" />
+                <ProductShopping id={item.id} mode="cart" item={resolvePersonalization(item, content)} />
                 <div className="listing-mobile-facts">
                   <span className="free-delivery">Free Shipping</span>
                   {content.reviews.length > 0 && <div>

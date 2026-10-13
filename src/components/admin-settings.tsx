@@ -128,6 +128,25 @@ export default function AdminSettings({
       )}
     </label>
   );
+  if (tab === "Personalization") return <>
+    <h2>Personalization library</h2>
+    <p>Create reusable headings, instructions, and optional prices. Listings use the default unless you choose an override.</p>
+    <label>Default personalization<select value={content.defaultPersonalizationId} onChange={event => change("defaultPersonalizationId", event.target.value)}><option value="">None</option>{(content.personalizations ?? []).map(template => <option key={template.id} value={template.id}>{template.name}</option>)}</select></label>
+    {(content.personalizations ?? []).map(template => {
+      const update = (values: Partial<typeof template>) => change("personalizations", (content.personalizations ?? []).map(item => item.id === template.id ? { ...item, ...values } : item));
+      return <details key={template.id} className="manager-entry manager-policy-entry personalization-entry">
+        <summary className="manager-category-summary"><span>{template.name || "New personalization"}</span></summary>
+        <label>Name<input value={template.name} required maxLength={100} onChange={event => update({ name: event.target.value })} /></label>
+        <label>Heading<input value={template.heading} maxLength={150} onChange={event => update({ heading: event.target.value })} /></label>
+        <label>Instructions<textarea value={template.text} maxLength={2000} rows={3} onChange={event => update({ text: event.target.value })} /></label>
+        <label>Price per item (USD)<input type="number" min="0" step="0.01" value={template.price ?? ""} placeholder="Free" onChange={event => update({ price: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
+        <p className="muted">Leave the price blank for free personalization.</p>
+        <div className="recordActions"><button type="button" disabled={content.defaultPersonalizationId === template.id} onClick={() => change("defaultPersonalizationId", template.id)}>Set as default</button><button type="button" onClick={() => { change("personalizations", (content.personalizations ?? []).filter(item => item.id !== template.id)); if (content.defaultPersonalizationId === template.id) change("defaultPersonalizationId", ""); }}>Remove</button></div>
+      </details>;
+    })}
+    <button type="button" onClick={() => change("personalizations", [...(content.personalizations ?? []), { id: crypto.randomUUID(), name: "New personalization", heading: "Want to engrave something?", text: "Tell us what you would like engraved." }])}>Add personalization</button>
+    <p className="muted">Save website changes to publish the library and default.</p>
+  </>;
   if (tab === "Brand & announcement")
     return (
       <>
