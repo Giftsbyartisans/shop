@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
-
-export function GET(request: Request) {
-  return NextResponse.redirect(new URL("/sitemap.xml", request.url), 308);
+export function GET() {
+  // Resolve against the browser's public origin, not the proxy's internal URL.
+  return new Response(null, {
+    status: 307,
+    headers: { Location: "/sitemap.xml", "Cache-Control": "no-store" },
+  });
 }

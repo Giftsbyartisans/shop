@@ -29,7 +29,7 @@ function ListingPrices({ item, content, detail = false }: { item: Listing; conte
         <strong className={discounted ? "discount-price" : undefined}>{detail && discounted && <span className="listing-price-now">Now </span>}{formatPrice(price)}</strong>
         {discounted && <span className="listing-was"><del>{formatPrice(item.price)}</del> <span className="listing-percent-off">({percentOff}% off)</span></span>}
       </div>
-      <Link className="free-delivery" href="/policies/delivery">Shipping details</Link>
+      <Link className="free-delivery" href="/policies/delivery">Free delivery</Link>
     </>
   );
 }
@@ -445,7 +445,7 @@ export default function Storefront({
                 <div className="listing-detail-heading">
                   <div className="listing-category-favorite">
                     <p className="eyebrow">{item.category}</p>
-                    <ProductShopping id={item.id} compact mode="favorite" />
+                    <ProductShopping id={item.id} compact mode="favorite" showFavoriteNotice={false} />
                   </div>
                   <h1>{item.title}</h1>
                   <div className="listing-detail-price"><ListingPrices item={item} content={content} detail /></div>
@@ -453,7 +453,7 @@ export default function Storefront({
                 <p className="listing-maker">Handmade by GiftsByArtisans</p>
                 <ProductShopping id={item.id} mode="cart" item={resolvePersonalization(item, content)} />
                 <div className="listing-mobile-facts">
-                  <Link className="free-delivery" href="/policies/delivery">Shipping details</Link>
+                  <Link className="free-delivery" href="/policies/delivery">Free delivery</Link>
                   {content.reviews.length > 0 && <div>
                     <span>Testimonials</span>
                     <a href="#listing-testimonials">{content.reviews.length} customer {content.reviews.length === 1 ? "story" : "stories"}</a>

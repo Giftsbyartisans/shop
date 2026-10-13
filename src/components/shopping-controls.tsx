@@ -32,7 +32,7 @@ export function ShoppingLinks() {
     return <Link key={kind} href={`/${kind}`} aria-label={`${kind === "cart" ? "Cart" : "Favorites"}, ${count} items`} title={kind === "cart" ? "Cart" : "Favorites"}><ShoppingIcon kind={kind} />{count > 0 && <span className="shopping-count">{count}</span>}</Link>;
   })}</div>;
 }
-export function ProductShopping({ id, compact = false, mode = "both", item }: { id: string; compact?: boolean; mode?: "both" | "favorite" | "cart"; item?: Listing }) {
+export function ProductShopping({ id, compact = false, mode = "both", item, showFavoriteNotice = true }: { id: string; compact?: boolean; mode?: "both" | "favorite" | "cart"; item?: Listing; showFavoriteNotice?: boolean }) {
   const state = useShopping();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -48,7 +48,7 @@ export function ProductShopping({ id, compact = false, mode = "both", item }: { 
     try {
       if (kind === "favorite") await setFavorite(id, !favorite);
       else await updateShopping(current => addCartItem(current, id, item?.personalizationEnabled ? personalization : "", quantity));
-      setNotice(kind === "cart" ? "Added to cart" : favorite ? "Removed from favorites" : "Saved to favorites");
+      setNotice(kind === "cart" ? "Added to cart" : showFavoriteNotice ? favorite ? "Removed from favorites" : "Saved to favorites" : "");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save this item. Please try again."); }
     finally { setBusy(false); }
   }
@@ -69,6 +69,6 @@ export function ProductShopping({ id, compact = false, mode = "both", item }: { 
     </div>}
     {mode !== "favorite" && <button disabled={busy || cart.loading} onClick={() => act("cart")} className={compact ? "" : "primary"}>Add to cart</button>}
     {mode !== "cart" && <button disabled={busy || favorites.loading} onClick={() => act("favorite")} aria-pressed={favorite} aria-label={`${favorite ? "Remove from" : "Save to"} favorites`} title={favorite ? "Remove from favorites" : "Save to favorites"}><ShoppingIcon kind="favorites" />{!compact && (favorite ? "Saved" : "Favorite")}</button>}
-    <span role="status" className="shopping-notice">{error || notice}</span>
+    {(error || notice) && <span role="status" className="shopping-notice">{error || notice}</span>}
   </div>;
 }
