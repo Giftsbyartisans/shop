@@ -1,4 +1,5 @@
 import { DynamoDBClient, GetItemCommand, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import process from "node:process";
 import { emptyPayPalSettings, type PayPalSettings } from "../../../src/lib/paypal-settings";
 import { decryptPayPalSettings, encryptPayPalSettings } from "../../../src/lib/paypal-encryption";
 const db = new DynamoDBClient({});

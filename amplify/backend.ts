@@ -1,4 +1,5 @@
 import { HttpApi, HttpMethod, CorsHttpMethod, CfnStage } from 'aws-cdk-lib/aws-apigatewayv2';
+import process from 'node:process';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { shopApi } from './functions/shop-api/resource';
 import { defineBackend } from '@aws-amplify/backend';
