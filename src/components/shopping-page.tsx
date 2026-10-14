@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
-import OrderNow from "./order-now";
-import { backendApiUrl } from "@/lib/backend-api";
-import type { CartTotals } from "@/lib/cart-totals";
+import BuyNow from "./buy-now";
+import { useCartTotals } from "./use-cart-totals";
 import { useEffect, useState } from "react";
+import { deliveryEstimate } from "@/lib/delivery-estimate";
 import type { Listing } from "@/lib/catalog";
 import { formatPrice, listingPrice } from "@/lib/catalog";
 import type { ShopContent } from "@/lib/content";
@@ -21,32 +21,12 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
   if (kind === "cart" && (cart.loading || cart.error)) ready = false;
   if (kind === "favorites" && (favorites.loading || favorites.error)) ready = false;
   const [error, setError] = useState("");
-  const [orderNumber, setOrderNumber] = useState("");
+  const [estimatedDelivery, setEstimatedDelivery] = useState("");
+  useEffect(() => { setEstimatedDelivery(deliveryEstimate(new Date())); }, []);
   const selected: CartItem[] = kind === "cart" ? state.cart : state.favorites.map(id => ({ id, quantity: 1 }));
   const catalog = new Map(listings.filter(item => item.published).map(item => [item.id, resolvePersonalization(item, content)]));
   const cartKey = JSON.stringify({ items: selected, sale: [content.saleEnabled, content.salePercent], listings });
-  const [savedCartTotals, setCartTotals] = useState<{ key: string; cartTotals: CartTotals } | null>(null);
-  const [cartError, setCartError] = useState("");
-  const cartTotals = savedCartTotals?.key === cartKey ? savedCartTotals.cartTotals : null;
-  useEffect(() => {
-    if (kind !== "cart" || !ready || !selected.length) return;
-    const controller = new AbortController();
-    setCartError("");
-    const timer = setTimeout(() => {
-      void (async () => {
-        try {
-          const response = await fetch(backendApiUrl("/cart"), { method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ items: JSON.parse(cartKey).items }), signal: controller.signal });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || "Could not load cart prices.");
-          if (!controller.signal.aborted) setCartTotals({ key: cartKey, cartTotals: result });
-        } catch (cause) {
-          if (!controller.signal.aborted) setCartError(cause instanceof Error ? cause.message : "Could not load cart prices.");
-        }
-      })();
-    }, 150);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [kind, ready, cartKey]);
+  const { totals: cartTotals, error: cartError } = useCartTotals(selected, kind === "cart" && ready, cartKey);
   async function quantity(id: string, value: number) {
     try { await updateShopping(current => changeQuantity(current, id, value)); setError(""); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not update your cart."); }
@@ -57,7 +37,6 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
   }
   return <main className="shop shopping-page">
     <h1>{kind === "cart" ? "Your cart" : "Your favorites"}</h1>
-    {orderNumber && <p role="status">Order {orderNumber} placed. Payment pending. <Link href="/account?section=orders">View your orders →</Link></p>}
     {kind === "favorites" && <p className="muted">{favorites.signedIn ? "Favorites are saved to your account." : "Saved in this browser."} Prices reflect the current shop catalog.</p>}
     {kind === "cart" && cart.error && <p role="alert">{cart.error} <button onClick={() => refreshCart()}>Try again</button></p>}
     {kind === "favorites" && favorites.loading && <p role="status">Loading favorites…</p>}
@@ -77,6 +56,7 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
           {item && <p className="shopping-item-price"><strong>{formatPrice(price)}</strong>{discounted && <><del>{formatPrice(item.price)}</del><span className="shopping-sale-tag">{percentOff}% off</span></>}{kind === "cart" && <Link className="free-delivery" href="/policies/delivery">Free delivery</Link>}</p>}
           {entry.personalization && <div className="cart-personalization-preview"><strong>Personalization {fee > 0 ? `(+${formatPrice(fee)} per item)` : "(free)"}</strong><p>{entry.personalization}</p></div>}
           {kind === "cart" && item && <label className="shopping-quantity">Quantity<select aria-label={`Quantity for ${item.title}`} value={entry.quantity} onChange={event => quantity(lineKey, Number(event.target.value))}>{Array.from({ length: 99 }, (_, index) => <option key={index + 1}>{index + 1}</option>)}</select></label>}
+          {kind === "cart" && item && <p className="shopping-delivery-estimate">Estimated delivery: {estimatedDelivery || "10–15 days"}</p>}
           {kind === "favorites" && item && <ProductShopping id={item.id} compact />}
         </div>
         <div className="shopping-item-actions">
@@ -91,6 +71,6 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
       <p className="shopping-summary-row"><span>Discount</span><strong>{cartTotals.discount > 0 ? "−" : ""}{formatPrice(cartTotals.discount)}</strong></p>
       <p className="shopping-summary-row"><span>Shipping charges</span><strong>{cartTotals.shipping === 0 ? "Free" : formatPrice(cartTotals.shipping)}</strong></p>
       <p className="shopping-summary-row shopping-summary-total"><span>Total</span><strong>{formatPrice(cartTotals.total)}</strong></p></> : <p role={cartError ? "alert" : "status"}>{cartError || "Calculating totals…"}</p>}
-      {cartTotals && <OrderNow key={cartKey} items={selected} total={cartTotals.total} signedIn={cart.signedIn} enabled={content.buyNowEnabled} onPlaced={setOrderNumber} />}<Link href="/collection">Continue shopping →</Link></aside>}</div>}
+      <BuyNow enabled={content.buyNowEnabled} ready={Boolean(cartTotals)} /></aside>}</div>}
   </main>;
 }

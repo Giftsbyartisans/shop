@@ -1,3 +1,5 @@
+import { Table, AttributeType, BillingMode } from "aws-cdk-lib/aws-dynamodb";
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { HttpApi, HttpMethod, CorsHttpMethod, CfnStage } from 'aws-cdk-lib/aws-apigatewayv2';
 import process from 'node:process';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
@@ -41,6 +43,16 @@ const media = new Distribution(stack, 'StorefrontMedia', {
 backend.addOutput({ custom: { mediaCdnUrl: `https://${media.distributionDomainName}` } });
 
 const apiLambda = backend.shopApi.resources.lambda;
+const verificationTable = new Table(backend.createStack('order-verification'), 'OrderVerification', {
+  partitionKey: { name: 'id', type: AttributeType.STRING }, billingMode: BillingMode.PAY_PER_REQUEST,
+  timeToLiveAttribute: 'expiresAt',
+});
+verificationTable.grantReadWriteData(apiLambda);
+backend.shopApi.addEnvironment('VERIFICATION_TABLE', verificationTable.tableName);
+backend.shopApi.addEnvironment('ORDER_EMAIL_FROM', process.env.ORDER_EMAIL_FROM ?? '');
+apiLambda.addToRolePolicy(new PolicyStatement({ actions: ['ses:SendEmail'], resources: [
+  Stack.of(apiLambda).formatArn({ service: 'ses', resource: 'identity', resourceName: process.env.ORDER_EMAIL_FROM || 'unconfigured' }),
+] }));
 backend.shopApi.addEnvironment('USER_POOL_ID', backend.auth.resources.userPool.userPoolId);
 backend.shopApi.addEnvironment('USER_POOL_CLIENT_ID', backend.auth.resources.userPoolClient.userPoolClientId);
 backend.shopApi.addEnvironment('PAYPAL_MODE', process.env.AWS_BRANCH === 'main' ? 'live' : 'sandbox');
@@ -70,7 +82,11 @@ const integration = new HttpLambdaIntegration('ShopIntegration', apiLambda);
 httpApi.addRoutes({ path: '/admin/paypal', methods: [HttpMethod.GET, HttpMethod.PUT], integration });
 httpApi.addRoutes({ path: '/import-image', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/favicon', methods: [HttpMethod.GET], integration });
-httpApi.addRoutes({ path: '/orders', methods: [HttpMethod.POST], integration });
+httpApi.addRoutes({ path: '/order-finder/code', methods: [HttpMethod.POST], integration });
+httpApi.addRoutes({ path: '/order-finder/verify', methods: [HttpMethod.POST], integration });
+httpApi.addRoutes({ path: '/order-finder', methods: [HttpMethod.POST], integration });
+httpApi.addRoutes({ path: '/orders/{id}', methods: [HttpMethod.GET], integration });
+httpApi.addRoutes({ path: '/orders', methods: [HttpMethod.GET, HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/cart', methods: [HttpMethod.POST], integration });
 // Keep the prior path for already-loaded frontend clients during deployment.
 httpApi.addRoutes({ path: '/cart/quote', methods: [HttpMethod.POST], integration });

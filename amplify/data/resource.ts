@@ -38,6 +38,7 @@ const schema = a.schema({
     postalCode: a.string().required(),
     country: a.string().required(),
     phone: a.string().required(),
+    email: a.email(),
   }).authorization(allow => [allow.owner()]),
   CustomerOrder: a.model({
     owner: a.string().required(),
@@ -52,10 +53,12 @@ const schema = a.schema({
     discount: a.float(),
     shipping: a.float(),
     requestFingerprint: a.string(),
+    isSample: a.boolean(),
+    email: a.email(),
+    trackingNumber: a.string(),
   }).authorization(allow => [
-    allow.ownerDefinedIn("owner").to(["read"]),
     allow.groups(["Admins"]),
-  ]),
+  ]).secondaryIndexes(index => [index("trackingNumber").name("byTrackingNumber"), index("email").name("byEmail")]),
   ShopSettings: a
     .model({ content: a.json().required() })
     .authorization((allow) => [

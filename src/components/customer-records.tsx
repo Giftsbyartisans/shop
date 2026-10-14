@@ -1,14 +1,14 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
-import { loadAddresses, saveAddress, deleteAddress, markDefaultAddress, loadOrders, type Address, type CustomerOrder, type AddressInput } from "@/lib/customer-records";
+import { formatAddressLabel, loadAddresses, saveAddress, deleteAddress, markDefaultAddress, loadOrders, type Address, type CustomerOrder, type AddressInput } from "@/lib/customer-records";
 import styles from "./customer-auth.module.css";
 
 const fields = [
   ["recipient", "Full name", "name", true], ["line1", "Street address", "address-line1", true],
   ["line2", "Apartment, suite, etc. (optional)", "address-line2", false], ["city", "City", "address-level2", true],
   ["region", "State / province (optional)", "address-level1", false], ["postalCode", "Postal code", "postal-code", true],
-  ["country", "Country", "country-name", true], ["phone", "Phone number", "tel", true],
+  ["country", "Country", "country-name", true], ["phone", "Mobile number", "tel", true],
 ] as const;
 
 export default function CustomerRecords({ section }: { section: "addresses" | "orders" }) {
@@ -86,7 +86,7 @@ export default function CustomerRecords({ section }: { section: "addresses" | "o
       </form> : <>
         {!addresses.length && <div className={styles.emptyState}><h2>No saved addresses yet</h2><p>Add a shipping address to keep your delivery details handy.</p></div>}
         <div className={styles.recordList}>{addresses.map(address => <article className={`${styles.recordCard} ${styles.addressCard}`} key={address.id}>
-          {address.label && <span className={styles.addressTag}>{address.label === "office" ? "Office" : address.label === "home" ? "Home" : address.label}</span>}
+          {address.label && <span className={styles.addressTag}>{formatAddressLabel(address.label)}</span>}
           {address.isDefault && <span className={`${styles.addressTag} ${styles.defaultTag}`}>Default</span>}
           <h3>{address.recipient}</h3><address>{address.line1}<br />{address.line2 && <>{address.line2}<br /></>}{address.city}{address.region ? `, ${address.region}` : ""} {address.postalCode}<br />{address.country}{address.phone && <><br />{address.phone}</>}</address>
           {!address.isDefault && <button className={styles.markDefault} disabled={busy} onClick={() => setDefault(address.id)}>Mark as default</button>}
@@ -95,10 +95,11 @@ export default function CustomerRecords({ section }: { section: "addresses" | "o
         <button className="primary" disabled={busy} onClick={() => { setEditing("new"); setLabelType("home"); setError(""); setNotice(""); }}>Add shipping address</button>
       </>}
     </> : orders.length ? <div className={styles.recordList}>{orders.map(order => <article className={styles.recordCard} key={order.id}>
-      <div className={styles.orderHeading}><h3>Order {order.orderNumber}</h3><span className={styles.orderStatus}>{order.status === "pending" ? "Pending · unpaid" : order.status || "pending"}</span></div>
+      <div className={styles.orderHeading}><h3><Link href={`/account/orders/${encodeURIComponent(order.id)}`} target="_blank" rel="noopener noreferrer">{order.isSample ? "Sample order" : "Order"} {order.orderNumber} ↗</Link></h3><span className={styles.orderStatus}>{order.status === "pending" ? "Pending · unpaid" : order.status || "pending"}</span></div>
       <p>{new Date(order.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
       <p>Total: {new Intl.NumberFormat("en-US", { style: "currency", currency: /^[A-Z]{3}$/.test(order.currency) ? order.currency : "USD" }).format(order.total)}</p>
-      {order.trackingUrl?.startsWith("https://") && <Link href={order.trackingUrl} target="_blank" rel="noopener noreferrer">Track shipment ↗</Link>}
+      <Link href={`/account/orders/${encodeURIComponent(order.id)}`} target="_blank" rel="noopener noreferrer" className={styles.orderSummaryLink}>View full order summary ↗</Link>
+      {order.trackingUrl?.startsWith("https://") && <Link href={order.trackingUrl} className={styles.orderTrackingLink} target="_blank" rel="noopener noreferrer">Track shipment ↗</Link>}
     </article>)}</div> : <div className={styles.emptyState}><h2>No orders yet</h2><p>Your shop orders will appear here when they are recorded.</p><Link href="/collection">Explore the collection →</Link></div>}
   </>;
 }

@@ -1,13 +1,18 @@
 import "./customer-auth";
 import { generateClient } from "aws-amplify/data";
-import { getCurrentUser } from "aws-amplify/auth";
+import { backendApiUrl } from "./backend-api";
+import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import type { Schema } from "../../amplify/data/resource";
 
 const client = generateClient<Schema>();
 const auth = { authMode: "userPool" as const };
-export type Address = Pick<Schema["ShippingAddress"]["type"], "id" | "label" | "recipient" | "line1" | "line2" | "city" | "region" | "postalCode" | "country" | "phone"> & { isDefault?: boolean };
+export type Address = Pick<Schema["ShippingAddress"]["type"], "id" | "label" | "recipient" | "line1" | "line2" | "city" | "region" | "postalCode" | "country" | "phone" | "email"> & { isDefault?: boolean };
 export type CustomerOrder = Schema["CustomerOrder"]["type"];
 export type AddressInput = Omit<Address, "id">;
+export function formatAddressLabel(label: string) {
+  const text = label.trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
 function requireModel(name: "ShippingAddress" | "CustomerOrder" | "CustomerPreferences") {
   if (!client.models[name]) {
     throw new Error(name === "ShippingAddress"
@@ -70,12 +75,35 @@ export async function deleteAddress(id: string) {
   check(await client.models.ShippingAddress.delete({ id }, auth));
 }
 export async function loadOrders(): Promise<CustomerOrder[]> {
-  requireModel("CustomerOrder");
+  const token = (await fetchAuthSession()).tokens?.accessToken.toString();
+  if (!token) throw new Error("Sign in to view your orders.");
   const records: CustomerOrder[] = [];
-  let nextToken: string | null | undefined;
+  let nextToken: string | null = null;
+  const seenTokens = new Set<string>();
   do {
-    const result = await client.models.CustomerOrder.list({ ...auth, nextToken, limit: 100 });
-    check(result); records.push(...result.data); nextToken = result.nextToken;
+    const response: Response = await fetch(backendApiUrl(`/orders${nextToken ? `?nextToken=${encodeURIComponent(nextToken)}` : ""}`), {
+      headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
+    });
+    if (response.status === 404) throw new Error("Order history needs the latest backend deployment. Deploy the updated Lambda backend and try again.");
+    const result: { orders: CustomerOrder[]; nextToken?: string | null; error?: string } = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not load your orders.");
+    if (!Array.isArray(result.orders)) throw new Error("Order history returned an invalid response.");
+    records.push(...result.orders);
+    nextToken = result.nextToken || null;
+    if (nextToken) {
+      if (seenTokens.has(nextToken)) throw new Error("Could not load the next page of orders.");
+      seenTokens.add(nextToken);
+    }
   } while (nextToken);
   return records.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function loadOrder(id: string): Promise<CustomerOrder> {
+  const token = (await fetchAuthSession()).tokens?.accessToken.toString();
+  if (!token) throw new Error("Sign in to view this order.");
+  const response = await fetch(backendApiUrl(`/orders/${encodeURIComponent(id)}`), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+  if (response.status === 404) throw new Error("This order was not found or is unavailable to your account.");
+  const result = await response.json();
+  if (!response.ok || !result.order) throw new Error(result.error || "Could not load this order.");
+  return result.order;
 }

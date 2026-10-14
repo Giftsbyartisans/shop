@@ -7,6 +7,11 @@ import { signIn, signUp, confirmSignUp, resendSignUpCode, resetPassword, confirm
 import styles from "./customer-auth.module.css";
 import CustomerAccount from "./customer-account";
 
+function loginDestination() {
+  const next = new URLSearchParams(window.location.search).get("next") || "";
+  return ["/cart", "/checkout/address"].includes(next) || /^\/account\/orders\/[a-zA-Z0-9_-]+$/.test(next) ? next : "/account";
+}
+
 type Mode = "login" | "signup" | "verify" | "forgot" | "reset" | "challenge" | "new-password" | "account";
 
 export default function CustomerAuth({ initialMode }: { initialMode: "login" | "signup" | "account" | "forgot" }) {
@@ -31,7 +36,7 @@ export default function CustomerAuth({ initialMode }: { initialMode: "login" | "
       } catch { /* Login remains available when browser storage is disabled. */ }
     }
     getCurrentUser().then(user => {
-      if (active && initialMode === "login" && new URLSearchParams(window.location.search).get("next") === "/cart") { window.location.assign("/cart"); return; }
+      if (active && initialMode === "login" && loginDestination() !== "/account") { window.location.assign(loginDestination()); return; }
       if (active) { setAccountEmail(user.signInDetails?.loginId || "Customer"); setMode("account"); }
     }).catch(() => { if (active && initialMode === "account") setMode("login"); })
       .finally(() => { if (active) setChecking(false); });
@@ -40,7 +45,7 @@ export default function CustomerAuth({ initialMode }: { initialMode: "login" | "
 
   function change(next: Mode, notice = "") { setMode(next); setError(""); setMessage(notice); }
   async function finishLogin(result: SignInOutput) {
-    if (result.isSignedIn) { window.location.assign(new URLSearchParams(window.location.search).get("next") === "/cart" ? "/cart" : "/account"); return; }
+    if (result.isSignedIn) { window.location.assign(loginDestination()); return; }
     const step = result.nextStep.signInStep;
     if (step === "CONFIRM_SIGN_UP") {
       await resendSignUpCode({ username: email.trim() });

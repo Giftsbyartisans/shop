@@ -1,8 +1,11 @@
+import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
+import { checkoutEmail } from "../../../src/lib/checkout-contact";
+import { digest, newChallenge, orderPreview, publicOrder } from "./order-verification";
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import process from "node:process";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { DynamoDBClient, GetItemCommand, PutItemCommand, type AttributeValue } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, GetItemCommand, PutItemCommand, ScanCommand, QueryCommand, UpdateItemCommand, DeleteItemCommand, type AttributeValue } from "@aws-sdk/client-dynamodb";
 import { downloadEtsyImage } from "../../../src/lib/download-etsy-image";
 import { etsyUploadId, isEtsyImage } from "../../../src/lib/etsy-image-import";
 import { mediaUploadPrefix } from "../../../src/lib/media-paths";
@@ -12,7 +15,7 @@ import { defaultContent, type ShopContent } from "../../../src/lib/content";
 import type { Listing } from "../../../src/lib/catalog";
 import type { CartItem } from "../../../src/lib/shopping";
 import { readPayPalSettings, writePayPalSettings } from "./paypal-storage";
-import { placeOrder, OrderError, type OrderRecord } from "./orders";
+import { placeOrder, orderOwners, ownedOrderDetails, OrderError, type OrderRecord } from "./orders";
 import { defaultIcon } from "./default-icon";
 const s3 = new S3Client({}), db = new DynamoDBClient({});
 const verifier = CognitoJwtVerifier.create({ userPoolId: process.env.USER_POOL_ID!, clientId: process.env.USER_POOL_CLIENT_ID!, tokenUse: "access", groups: ["Admins"] });
@@ -66,14 +69,101 @@ export async function handler(event: APIGatewayProxyEventV2) {
       return json(calculateCartTotals(items, listings.map(item => ({ ...item, published: true })), content));
     } catch (error) { return json({ error: error instanceof Error && !('$metadata' in error) ? error.message : "Cart prices could not be loaded." }, 400); }
   }
-  if (path === "/orders" && method === "POST") {
+  if (path.startsWith("/order-finder") && method === "POST") {
+    try {
+      const input = body(event, 2048);
+      let email = "";
+      try { email = input.email ? checkoutEmail(input.email) : ""; } catch { throw new OrderError("Enter a valid email address."); }
+      const now = Math.floor(Date.now() / 1000);
+      const emailOrders = async () => {
+        const result = await db.send(new QueryCommand({ TableName: process.env.ORDER_TABLE, IndexName: "byEmail",
+          KeyConditionExpression: "email = :email", ExpressionAttributeValues: { ":email": { S: email } }, Limit: 100 }));
+        return (result.Items ?? []).map(item => Object.fromEntries(Object.entries(item).map(([key, value]) => [key, decode(value)])));
+      };
+      if (path === "/order-finder/code") {
+        if (!email) throw new OrderError("Enter your email address.");
+        if (!process.env.ORDER_EMAIL_FROM) throw new OrderError("Email verification is not available yet. Please try again later.", 503);
+        const challenge = newChallenge(email, now);
+        const item = Object.fromEntries(Object.entries(challenge.record).map(([key, value]) => [key, typeof value === "number" ? { N: String(value) } : { S: value }]));
+        try { await db.send(new PutItemCommand({ TableName: process.env.VERIFICATION_TABLE, Item: item,
+          ConditionExpression: "attribute_not_exists(id) OR sentAt < :cooldown", ExpressionAttributeValues: { ":cooldown": { N: String(now - 60) } } })); }
+        catch (error) { if ((error as Error).name === "ConditionalCheckFailedException") throw new OrderError("Wait a minute before requesting another code.", 429); throw error; }
+        // Send the same response for every valid email, including those with no orders.
+        await new SESv2Client({}).send(new SendEmailCommand({ FromEmailAddress: process.env.ORDER_EMAIL_FROM,
+          Destination: { ToAddresses: [email] }, Content: { Simple: { Subject: { Data: "Your Track order verification code" },
+          Body: { Text: { Data: `Your Gifts By Artisans verification code is ${challenge.code}. It expires in 10 minutes. If you did not request it, you can ignore this email.` } } } } }));
+        return json({ challenge: challenge.token });
+      }
+      if (path === "/order-finder/verify") {
+        if (!email || typeof input.challenge !== "string" || !/^[a-f0-9]{64}$/.test(input.challenge) || typeof input.code !== "string" || !/^\d{6}$/.test(input.code)) throw new OrderError("Enter the six-digit verification code.");
+        const key = { id: { S: digest(email) } };
+        try { await db.send(new UpdateItemCommand({ TableName: process.env.VERIFICATION_TABLE, Key: key,
+          UpdateExpression: "ADD attempts :one", ConditionExpression: "#token = :token AND expiresAt > :now AND attempts < :max",
+          ExpressionAttributeNames: { "#token": "token" }, ExpressionAttributeValues: { ":one": { N: "1" }, ":token": { S: input.challenge }, ":now": { N: String(now) }, ":max": { N: "5" } } })); }
+        catch (error) { if ((error as Error).name === "ConditionalCheckFailedException") throw new OrderError("The code expired or too many attempts were made. Request a new code."); throw error; }
+        try { await db.send(new DeleteItemCommand({ TableName: process.env.VERIFICATION_TABLE, Key: key,
+          ConditionExpression: "#token = :token AND codeHash = :hash AND expiresAt > :now",
+          ExpressionAttributeNames: { "#token": "token" }, ExpressionAttributeValues: { ":token": { S: input.challenge }, ":hash": { S: digest(`${input.challenge}:${input.code}`) }, ":now": { N: String(now) } } })); }
+        catch (error) { if ((error as Error).name === "ConditionalCheckFailedException") throw new OrderError("The verification code is incorrect or has already been used."); throw error; }
+        return json({ orders: (await emailOrders()).map(publicOrder) });
+      }
+      if (path !== "/order-finder") return json({ error: "Not found." }, 404);
+      if (email) return json({ previews: (await emailOrders()).map(orderPreview) });
+      const trackingNumber = typeof input.trackingNumber === "string" ? input.trackingNumber.trim().toUpperCase() : "";
+      if (!/^GBA-[A-F0-9]{32}$/.test(trackingNumber)) throw new OrderError("Enter an email address or tracking number.");
+      const result = await db.send(new QueryCommand({ TableName: process.env.ORDER_TABLE, IndexName: "byTrackingNumber", KeyConditionExpression: "trackingNumber = :tracking", ExpressionAttributeValues: { ":tracking": { S: trackingNumber } }, Limit: 1 }));
+      const item = result.Items?.[0];
+      if (!item) throw new OrderError("No order matches those details.", 404);
+      return json({ order: publicOrder(Object.fromEntries(Object.entries(item).map(([key, value]) => [key, decode(value)]))) });
+    } catch (error) { return json({ error: error instanceof OrderError ? error.message : "Track order is temporarily unavailable. Try again." }, error instanceof OrderError ? error.status : 503); }
+  }
+  if ((path === "/orders" || /^\/orders\/[^/]+$/.test(path)) && method === "GET") {
     const token = event.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
-    if (!token) return json({ error: "Sign in to place your order." }, 401);
+    if (!token) return json({ error: "Sign in to view your orders." }, 401);
     let customer;
     try { customer = await customerVerifier.verify(token); }
-    catch { return json({ error: "Sign in to place your order." }, 401); }
+    catch { return json({ error: "Sign in to view your orders." }, 401); }
     try {
-      const receipt = await placeOrder(body(event, 128 * 1024), { sub: customer.sub, username: customer.username }, {
+      const owners = orderOwners({ sub: customer.sub, username: customer.username });
+      if (path !== "/orders") {
+        let id;
+        try { id = decodeURIComponent(path.slice("/orders/".length)); } catch { return json({ error: "Invalid order ID." }, 400); }
+        if (!/^[a-zA-Z0-9_-]{1,200}$/.test(id)) return json({ error: "Invalid order ID." }, 400);
+        const saved = await record(process.env.ORDER_TABLE, id);
+        try { return json({ order: ownedOrderDetails(saved, { sub: customer.sub, username: customer.username }) }); }
+        catch (error) { if (error instanceof OrderError) return json({ error: error.message }, error.status); throw error; }
+      }
+      let cursor: Record<string, AttributeValue> | undefined;
+      const rawCursor = event.queryStringParameters?.nextToken;
+      if (rawCursor) {
+        if (rawCursor.length > 1024) return json({ error: "Invalid order page." }, 400);
+        try {
+          const decoded = JSON.parse(Buffer.from(rawCursor, "base64url").toString("utf8"));
+          if (!decoded || typeof decoded.id?.S !== "string" || Object.keys(decoded).length !== 1) throw new Error();
+          cursor = { id: { S: decoded.id.S } };
+        } catch { return json({ error: "Invalid order page." }, 400); }
+      }
+      const result = await db.send(new ScanCommand({ TableName: process.env.ORDER_TABLE, ConsistentRead: true, Limit: 100,
+        ExclusiveStartKey: cursor, FilterExpression: "#owner IN (:combined, :sub, :username)",
+        ExpressionAttributeNames: { "#owner": "owner" }, ExpressionAttributeValues: { ":combined": { S: owners[0] }, ":sub": { S: owners[1] }, ":username": { S: owners[2] } } }));
+      const orders = (result.Items ?? []).map(item => {
+        const record = Object.fromEntries(Object.entries(item).map(([key, value]) => [key, decode(value)]));
+        // Return account data only, not the internal retry fingerprint.
+        const { requestFingerprint: _fingerprint, __typename: _typename, ...order } = record;
+        return order;
+      });
+      return json({ orders, nextToken: result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url") : null });
+    } catch { return json({ error: "Could not load your order history. Please try again." }, 503); }
+  }
+  if (path === "/orders" && method === "POST") {
+    const token = event.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
+    let customer = null;
+    if (token) {
+      try { customer = await customerVerifier.verify(token); }
+      catch { return json({ error: "Your sign-in session expired. Sign in again or continue as a guest." }, 401); }
+    }
+    try {
+      const receipt = await placeOrder(body(event, 128 * 1024), customer ? { sub: customer.sub, username: customer.username } : null, {
         getOrder: async id => await record(process.env.ORDER_TABLE, id) as OrderRecord | null,
         address: id => record(process.env.ADDRESS_TABLE, id),
         catalog: async ids => {
@@ -83,7 +173,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
           return { listings: listings.map(item => ({ ...item, published: true })), content: { ...defaultContent, ...raw } as ShopContent };
         },
         create: async order => {
-          const Item = Object.fromEntries(Object.entries(order).map(([key, value]) => [key, typeof value === "number" ? { N: String(value) } : { S: value }]));
+          const Item = Object.fromEntries(Object.entries(order).map(([key, value]) => [key, typeof value === "number" ? { N: String(value) } : typeof value === "boolean" ? { BOOL: value } : { S: value }]));
           try { await db.send(new PutItemCommand({ TableName: process.env.ORDER_TABLE, Item, ConditionExpression: "attribute_not_exists(id)" })); return true; }
           catch (error) { if (error instanceof Error && error.name === "ConditionalCheckFailedException") return false; throw error; }
         },

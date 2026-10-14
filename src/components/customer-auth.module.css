@@ -77,3 +77,7 @@
 .accountPage .accountContent{padding:36px 6%}
 .accountPage .accountNav{gap:0}
 @media(max-width:700px){.accountHeader{padding:20px}.accountPage .accountBar{padding:24px 20px 0}.accountPage .accountContent{padding:28px 20px}}
+.recordCard:has(.orderSummaryLink){position:relative}
+.orderSummaryLink::after{content:"";position:absolute;inset:0;border-radius:12px}
+.orderSummaryLink:focus-visible::after{outline:2px solid #476827;outline-offset:3px}
+.orderTrackingLink{position:relative;z-index:1}

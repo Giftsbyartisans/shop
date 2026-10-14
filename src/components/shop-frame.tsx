@@ -91,6 +91,7 @@ export function ShopFooter({ content }: { content: ShopContent }) {
         <div>
           <h3>Customer care</h3>
           <Link href="/contact">Contact us</Link>
+          <Link href="/order-finder">Track order</Link>
           {content.policies.map((p) => (
             <Link href={"/policies/" + encodeURIComponent(p.id)} key={p.id}>
               {p.title}

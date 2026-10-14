@@ -61,7 +61,53 @@ Product and shipping-address snapshots are retained with the order.
 The conditional order write and user-scoped request ID make retries idempotent.
 Client retry IDs survive a page reload in session storage until cart cleanup
 succeeds. After order creation, the frontend removes only submitted quantities
-from the cart and links to account order history. Existing model permissions keep
-customer orders read-only for their owner and writable only by admins/Lambda.
+from the cart and links to account order history. Customer order records are accessible through AppSync only to admins; customers
+read and create orders through the ownership-checked Lambda endpoints.
 Deploy the updated CustomerOrder fields and Lambda IAM permissions before serving
 the new frontend. Guest shoppers sign in and choose a saved address before ordering.
+
+## Checkout steps
+
+The cart's Buy now button opens `/checkout/address`. Customers sign in, choose a
+saved address or save a new address inline, then use Next to open
+`/checkout/payment?address=<id>`. Both steps show a full item-and-price summary.
+The payment page reserves space for future gateways; Place order calls `/orders`
+and creates a record explicitly marked `isSample: true`, with pending/unpaid status.
+No gateway is invoked. Order confirmation remains visible after cart cleanup and
+links to account order history. Deploy the `isSample` field with the backend before
+serving these pages. The admin toggle grays out Buy now on the cart and Lambda
+continues to reject new orders when disabled.
+
+Order history is loaded through authenticated `GET /orders` in the same Lambda.
+The server filters every page by owner identities derived from the verified Cognito
+token (combined sub/username, legacy sub, or legacy username), so direct DynamoDB
+orders are readable even with older AppSync owner rules. Client pagination continues
+through empty filtered pages and sorts the resulting records by creation time.
+The retry fingerprint is not returned. Deploy the GET route before using the new
+account history client; it reports a deployment requirement if the route is absent.
+
+`GET /orders/{id}` returns one order only after verifying the customer's access
+token and checking its stored owner. Foreign and missing orders both return 404.
+Account order cards open `/account/orders/<id>` in a new tab. The summary renders
+archived product/personalization details, the shipping address, recorded price
+breakdown, status, sample marker, and delivery estimate based on order creation.
+Missing legacy snapshots are labeled unavailable rather than substituted with
+current catalog details. Deploy the detail route together with the frontend page.
+
+
+## Guest checkout and Order finder
+
+Guests can submit orders without signing in. Checkout requires a valid contact
+email and mobile number; the server validates both, calculates prices, and saves
+contact details, product snapshots and the shipping address in CustomerOrder.
+Guest ownership uses a SHA-256 identity derived from normalized email. It does
+not make guest records readable to an account merely because someone types that
+email. Account orders continue to use verified Cognito ownership.
+
+Every new order receives a private random 128-bit tracking number. Footer → Track order opens `/order-finder` and accepts either email or that private tracking number. Tracking-number lookup opens the full summary. Email lookup returns only order number, date, and status (up to 100 orders). Addresses, items, prices, internal IDs, and tracking credentials are excluded from previews.
+
+Email users click View full order details to send a six-digit code through SES. `/order-finder/code` stores a salted code hash with a random challenge, ten-minute expiry, and a 60-second resend cooldown in a private DynamoDB table. `/order-finder/verify` atomically counts attempts (maximum five), consumes the challenge once, and returns orders matching the normalized email. TTL removes expired records; expiry is also enforced during verification. Lookup and verification credentials remain in POST bodies. The preview intentionally reveals whether an email has orders; API throttling limits requests.
+
+Set `ORDER_EMAIL_FROM` in the Amplify build environment to an SES-verified **email identity** in the backend region before deploying. Lambda grants SendEmail for that exact identity. SES sandbox accounts require verified recipients; production SES access is necessary for arbitrary customer addresses. Missing sender configuration produces a clear unavailable message rather than exposing full details. No code is returned to the browser or logged. Deploy the `byEmail` index, verification table, SES permission, and both verification routes with the frontend. Guest address drafts stay in session storage until order creation. Orders remain sample and unpaid.
+
+AppSync CustomerOrder access is admin-only. Guest records cannot be claimed through an account username matching their email-derived owner identity; account reads filter out the reserved guest namespace.

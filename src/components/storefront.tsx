@@ -15,6 +15,8 @@ import TestimonialCarousel from "./testimonial-carousel";
 import { policyBody } from "@/lib/policy-text";
 import { ProductShopping } from "./shopping-controls";
 import ShoppingPage from "./shopping-page";
+import Checkout from "./checkout";
+import OrderFinder from "./order-finder";
 import { resolvePersonalization } from "@/lib/personalization";
 import ShopImage from "./shop-image";
 import { formatPrice, listingPrice, type Listing } from "@/lib/catalog";
@@ -148,7 +150,7 @@ export default function Storefront({
   bestSellersOnly = false,
 }: {
   page?:
-    "home" | "collection" | "contact" | "wholesale" | "policies" | "listing" | "cart" | "favorites";
+    "home" | "collection" | "contact" | "wholesale" | "policies" | "listing" | "cart" | "favorites" | "checkout-address" | "checkout-payment" | "order-finder";
   id?: string;
   initialContent?: ShopContent;
   initialListings?: Listing[];
@@ -249,7 +251,7 @@ export default function Storefront({
   return (
     <div className="storefront-frame">
       <ShopHeader content={content} />
-      {page === "cart" || page === "favorites" ? <ShoppingPage kind={page} listings={visible} content={content} ready={ready && !error && settingsStatus === "ready"} loadError={error} /> : page === "home" ? (
+      {page === "order-finder" ? <OrderFinder /> : page === "checkout-address" || page === "checkout-payment" ? <Checkout step={page === "checkout-address" ? "address" : "payment"} listings={visible} content={content} ready={ready && !error && settingsStatus === "ready"} /> : page === "cart" || page === "favorites" ? <ShoppingPage kind={page} listings={visible} content={content} ready={ready && !error && settingsStatus === "ready"} loadError={error} /> : page === "home" ? (
         <main className="shop shop-home">
           {settingsStatus === "ready" ? (
             <StoreBanner content={content} />
