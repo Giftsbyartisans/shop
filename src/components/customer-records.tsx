@@ -95,7 +95,7 @@ export default function CustomerRecords({ section }: { section: "addresses" | "o
         <button className="primary" disabled={busy} onClick={() => { setEditing("new"); setLabelType("home"); setError(""); setNotice(""); }}>Add shipping address</button>
       </>}
     </> : orders.length ? <div className={styles.recordList}>{orders.map(order => <article className={styles.recordCard} key={order.id}>
-      <div className={styles.orderHeading}><h3>Order {order.orderNumber}</h3><span className={styles.orderStatus}>{order.status || "pending"}</span></div>
+      <div className={styles.orderHeading}><h3>Order {order.orderNumber}</h3><span className={styles.orderStatus}>{order.status === "pending" ? "Pending · unpaid" : order.status || "pending"}</span></div>
       <p>{new Date(order.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
       <p>Total: {new Intl.NumberFormat("en-US", { style: "currency", currency: /^[A-Z]{3}$/.test(order.currency) ? order.currency : "USD" }).format(order.total)}</p>
       {order.trackingUrl?.startsWith("https://") && <Link href={order.trackingUrl} target="_blank" rel="noopener noreferrer">Track shipment ↗</Link>}

@@ -7,6 +7,10 @@ import CustomerRecords from "./customer-records";
 
 export default function CustomerAccount({ email, busy, error, onSignOut }: { email: string; busy: boolean; error: string; onSignOut: () => Promise<void> }) {
   const [tab, setTab] = useState<"overview" | "profile" | "security" | "addresses" | "orders">("overview");
+  useEffect(() => {
+    const section = new URLSearchParams(window.location.search).get("section");
+    if (section === "addresses" || section === "orders") setTab(section);
+  }, []);
   const [name, setName] = useState("");
   const [savedName, setSavedName] = useState("");
   const [profileEmail, setProfileEmail] = useState(email);

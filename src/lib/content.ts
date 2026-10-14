@@ -4,6 +4,7 @@ export type ShopContent = {
   bestSellerIds: string[];
   favicon: string;
   saleEnabled: boolean;
+  buyNowEnabled: boolean;
   adminDesktopOnly: boolean;
   salePercent: number;
   banners: { id: string; image: string; alt: string }[];
@@ -33,6 +34,7 @@ export const defaultContent: ShopContent = {
   bestSellerIds: [],
   favicon: "",
   saleEnabled: false,
+  buyNowEnabled: true,
   adminDesktopOnly: true,
   salePercent: 20,
   banners: [],
@@ -91,6 +93,7 @@ export const defaultContent: ShopContent = {
 };
 
 export function validateContent(content: ShopContent) {
+  if (typeof content.buyNowEnabled !== "boolean") throw new Error("Choose whether the Buy now button is enabled.");
   if (!Array.isArray(content.personalizations)) throw new Error("Invalid personalization library.");
   const templateIds = new Set<string>();
   for (const template of content.personalizations) {

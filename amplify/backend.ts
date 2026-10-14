@@ -49,11 +49,12 @@ backend.shopApi.addEnvironment('MEDIA_BUCKET', backend.storage.resources.bucket.
 backend.shopApi.addEnvironment('MEDIA_CDN_URL', `https://${media.distributionDomainName}`);
 backend.storage.resources.bucket.grantWrite(apiLambda, 'media/listing-images/*');
 for (const [model, variable] of [
+  ['CustomerOrder', 'ORDER_TABLE'], ['ShippingAddress', 'ADDRESS_TABLE'],
   ['PaymentSettings', 'PAYMENT_SETTINGS_TABLE'], ['ShopSettings', 'SHOP_SETTINGS_TABLE'], ['Listing', 'LISTING_TABLE'],
 ]) {
   const table = backend.data.resources.tables[model];
   backend.shopApi.addEnvironment(variable, table.tableName);
-  if (model === 'PaymentSettings') table.grantReadWriteData(apiLambda);
+  if (model === 'PaymentSettings' || model === 'CustomerOrder') table.grantReadWriteData(apiLambda);
   else table.grantReadData(apiLambda);
 }
 const httpApi = new HttpApi(backend.createStack('shop-http-api'), 'ShopHttpApi', {
@@ -69,5 +70,8 @@ const integration = new HttpLambdaIntegration('ShopIntegration', apiLambda);
 httpApi.addRoutes({ path: '/admin/paypal', methods: [HttpMethod.GET, HttpMethod.PUT], integration });
 httpApi.addRoutes({ path: '/import-image', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/favicon', methods: [HttpMethod.GET], integration });
+httpApi.addRoutes({ path: '/orders', methods: [HttpMethod.POST], integration });
+httpApi.addRoutes({ path: '/cart', methods: [HttpMethod.POST], integration });
+// Keep the prior path for already-loaded frontend clients during deployment.
 httpApi.addRoutes({ path: '/cart/quote', methods: [HttpMethod.POST], integration });
 backend.addOutput({ custom: { backendApiUrl: httpApi.apiEndpoint } });

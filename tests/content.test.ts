@@ -69,3 +69,8 @@ test("incomplete categories, reviews, and policy headings cannot be published", 
     /policy/,
   );
 });
+
+test("ordering toggle accepts only boolean settings", () => {
+  assert.doesNotThrow(() => validateContent({ ...defaultContent, buyNowEnabled: false }));
+  assert.throws(() => validateContent({ ...defaultContent, buyNowEnabled: "false" } as unknown as typeof defaultContent), /Buy now/);
+});

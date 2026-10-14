@@ -105,7 +105,7 @@ The public sitemap is available at `/sitemap.xml` and includes public pages, cat
 
 Custom API operations now run in the Amplify-managed `shop-api` Lambda through API
 Gateway: PayPal settings, Etsy image import, favicon delivery, and authoritative
-cart quotes. Next.js `/api` handlers have been removed. Managed AppSync CRUD,
+cart totals. Next.js `/api` handlers have been removed. Managed AppSync CRUD,
 Cognito auth, DynamoDB, S3, and CloudFront remain in use. The frontend reads
 `custom.backendApiUrl` from matching generated outputs. See
 [deployment and permissions](docs/lambda-backend.md).

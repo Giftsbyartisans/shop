@@ -1436,3 +1436,6 @@ button:not([data-slot="checkbox"]){-webkit-appearance:none;appearance:none}
   white-space: nowrap;
 }
 .listing-detail-price .listing-was { align-items: center; }
+
+.order-now{margin:20px 0}.order-now>.primary{width:100%;margin-top:12px;border-radius:24px}.order-now label{font-size:14px}.order-now>p{font-size:13px}
+.order-now>button.primary:disabled{background:#e5e5e5;color:#737373;border-color:#dedede;opacity:1;cursor:not-allowed}

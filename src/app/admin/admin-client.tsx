@@ -538,6 +538,12 @@ export default function AdminClient() {
           ) : tab === "Admin preferences" ? (
             <>
               <label className="check">
+                <input type="checkbox" checked={content.buyNowEnabled}
+                  onChange={event => change("buyNowEnabled", event.target.checked)} />
+                Enable Buy now / Order now button
+              </label>
+              <p className="manager-help">Turn off to gray out the ordering button and stop new website orders. Save website changes to apply.</p>
+              <label className="check">
                 <input type="checkbox" checked={content.adminDesktopOnly}
                   onChange={event => change("adminDesktopOnly", event.target.checked)} />
                 Desktop-only admin panel

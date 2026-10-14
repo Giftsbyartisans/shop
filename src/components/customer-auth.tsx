@@ -31,6 +31,7 @@ export default function CustomerAuth({ initialMode }: { initialMode: "login" | "
       } catch { /* Login remains available when browser storage is disabled. */ }
     }
     getCurrentUser().then(user => {
+      if (active && initialMode === "login" && new URLSearchParams(window.location.search).get("next") === "/cart") { window.location.assign("/cart"); return; }
       if (active) { setAccountEmail(user.signInDetails?.loginId || "Customer"); setMode("account"); }
     }).catch(() => { if (active && initialMode === "account") setMode("login"); })
       .finally(() => { if (active) setChecking(false); });
@@ -39,7 +40,7 @@ export default function CustomerAuth({ initialMode }: { initialMode: "login" | "
 
   function change(next: Mode, notice = "") { setMode(next); setError(""); setMessage(notice); }
   async function finishLogin(result: SignInOutput) {
-    if (result.isSignedIn) { window.location.assign("/account"); return; }
+    if (result.isSignedIn) { window.location.assign(new URLSearchParams(window.location.search).get("next") === "/cart" ? "/cart" : "/account"); return; }
     const step = result.nextStep.signInStep;
     if (step === "CONFIRM_SIGN_UP") {
       await resendSignUpCode({ username: email.trim() });

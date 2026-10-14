@@ -2,8 +2,8 @@ import { listingPrice, type Listing } from "./catalog";
 import { resolvePersonalization } from "./personalization";
 import type { ShopContent } from "./content";
 import { cartLineKey, type CartItem } from "./shopping";
-export type CartQuote = { subtotal: number; discount: number; shipping: number; total: number; currency: "USD"; lines: { key: string; total: number }[] };
-export function calculateCartQuote(items: CartItem[], listings: Listing[], content: ShopContent): CartQuote {
+export type CartTotals = { subtotal: number; discount: number; shipping: number; total: number; currency: "USD"; lines: { key: string; total: number }[] };
+export function calculateCartTotals(items: CartItem[], listings: Listing[], content: ShopContent): CartTotals {
   const catalog = new Map(listings.map(item => [item.id, resolvePersonalization(item, content)]));
   let original = 0, payable = 0;
   const lines = items.map(entry => {

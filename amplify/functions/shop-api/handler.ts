@@ -2,19 +2,21 @@ import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import process from "node:process";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { DynamoDBClient, GetItemCommand, type AttributeValue } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, GetItemCommand, PutItemCommand, type AttributeValue } from "@aws-sdk/client-dynamodb";
 import { downloadEtsyImage } from "../../../src/lib/download-etsy-image";
 import { etsyUploadId, isEtsyImage } from "../../../src/lib/etsy-image-import";
 import { mediaUploadPrefix } from "../../../src/lib/media-paths";
 import { paypalSettingsSummary, updatePayPalSettings } from "../../../src/lib/paypal-settings";
-import { calculateCartQuote } from "../../../src/lib/cart-quote";
+import { calculateCartTotals } from "../../../src/lib/cart-totals";
 import { defaultContent, type ShopContent } from "../../../src/lib/content";
 import type { Listing } from "../../../src/lib/catalog";
 import type { CartItem } from "../../../src/lib/shopping";
 import { readPayPalSettings, writePayPalSettings } from "./paypal-storage";
+import { placeOrder, OrderError, type OrderRecord } from "./orders";
 import { defaultIcon } from "./default-icon";
 const s3 = new S3Client({}), db = new DynamoDBClient({});
 const verifier = CognitoJwtVerifier.create({ userPoolId: process.env.USER_POOL_ID!, clientId: process.env.USER_POOL_CLIENT_ID!, tokenUse: "access", groups: ["Admins"] });
+const customerVerifier = CognitoJwtVerifier.create({ userPoolId: process.env.USER_POOL_ID!, clientId: process.env.USER_POOL_CLIENT_ID!, tokenUse: "access" });
 const json = (body: unknown, statusCode = 200) => ({ statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(body) });
 function decode(value: AttributeValue): unknown {
   if (value.S !== undefined) return value.S;
@@ -48,7 +50,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
     } catch { /* Retain a favicon if storage is unavailable. */ }
     return { statusCode: 200, isBase64Encoded: true, headers: { "content-type": "image/x-icon", "cache-control": "public, max-age=60" }, body: defaultIcon };
   }
-  if (path === "/cart/quote" && method === "POST") {
+  if ((path === "/cart" || path === "/cart/quote") && method === "POST") {
     try {
       const input = body(event, 128 * 1024);
       if (!Array.isArray(input.items) || input.items.length > 100) return json({ error: "A cart can contain up to 100 lines." }, 400);
@@ -61,8 +63,33 @@ export async function handler(event: APIGatewayProxyEventV2) {
       const content = { ...defaultContent, ...raw } as ShopContent;
       const listings = (await Promise.all([...new Set<string>(items.map((item: CartItem) => item.id))].map(id => record(process.env.LISTING_TABLE, id)))).filter(Boolean) as unknown as Listing[];
       // Public Listing records are published by definition; only drafts carry the flag.
-      return json(calculateCartQuote(items, listings.map(item => ({ ...item, published: true })), content));
+      return json(calculateCartTotals(items, listings.map(item => ({ ...item, published: true })), content));
     } catch (error) { return json({ error: error instanceof Error && !('$metadata' in error) ? error.message : "Cart prices could not be loaded." }, 400); }
+  }
+  if (path === "/orders" && method === "POST") {
+    const token = event.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
+    if (!token) return json({ error: "Sign in to place your order." }, 401);
+    let customer;
+    try { customer = await customerVerifier.verify(token); }
+    catch { return json({ error: "Sign in to place your order." }, 401); }
+    try {
+      const receipt = await placeOrder(body(event, 128 * 1024), { sub: customer.sub, username: customer.username }, {
+        getOrder: async id => await record(process.env.ORDER_TABLE, id) as OrderRecord | null,
+        address: id => record(process.env.ADDRESS_TABLE, id),
+        catalog: async ids => {
+          const settings = await record(process.env.SHOP_SETTINGS_TABLE, "website");
+          const raw = typeof settings?.content === "string" ? JSON.parse(settings.content) : settings?.content;
+          const listings = (await Promise.all(ids.map(id => record(process.env.LISTING_TABLE, id)))).filter(Boolean) as unknown as Listing[];
+          return { listings: listings.map(item => ({ ...item, published: true })), content: { ...defaultContent, ...raw } as ShopContent };
+        },
+        create: async order => {
+          const Item = Object.fromEntries(Object.entries(order).map(([key, value]) => [key, typeof value === "number" ? { N: String(value) } : { S: value }]));
+          try { await db.send(new PutItemCommand({ TableName: process.env.ORDER_TABLE, Item, ConditionExpression: "attribute_not_exists(id)" })); return true; }
+          catch (error) { if (error instanceof Error && error.name === "ConditionalCheckFailedException") return false; throw error; }
+        },
+      });
+      return json(receipt, 201);
+    } catch (error) { return json({ error: error instanceof OrderError ? error.message : "Could not place your order. Please retry." }, error instanceof OrderError ? error.status : 503); }
   }
   if (!((path === "/admin/paypal" && (method === "GET" || method === "PUT")) || (path === "/import-image" && method === "POST"))) return json({ error: "Not found." }, 404);
   const token = event.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];

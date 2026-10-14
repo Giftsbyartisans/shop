@@ -17,14 +17,14 @@ Routes:
   with the rest of each listing's media.
 - `GET /favicon`: redirects to the 320px CDN image or returns the bundled icon.
   It no longer transcodes a separate 48px PNG on each request.
-- `POST /cart/quote`: reads the current public Listing records and ShopSettings
+- `POST /cart`: reads the current public Listing records and ShopSettings
   from DynamoDB, then calculates quantity, sale, personalization, shipping and totals
-  in cents. Cart UI uses this quote and never substitutes its own total after errors.
+  in cents. Cart UI uses these totals and never substitutes its own total after errors.
   Missing products and invalid quantities/personalization fail closed.
 
 The Lambda role is restricted to reading Listing/ShopSettings, reading/writing
 PaymentSettings, and writing listing media. API Gateway throttles requests. Customer
-quotes are public, as product prices are public; admin operations verify tokens in
+cart calculations are public, as product prices are public; admin operations verify tokens in
 Lambda regardless of CORS or caller-supplied headers.
 
 ## Deployment
@@ -48,3 +48,20 @@ backend has deployed. The current developer AWS identity lacks `amplify:GetBranc
 production deployment must run using the Amplify build role or suitably authorized
 AWS credentials. Until deployed outputs contain `backendApiUrl`, the new frontend
 reports that the Lambda backend must be deployed instead of using the removed routes.
+
+## Orders without online payment
+
+`POST /orders` requires a valid customer Cognito access token. It accepts cart line
+IDs/quantities/personalization, a saved shipping address ID, a UUID request ID, and
+the displayed expected total. Lambda checks address ownership and reads current
+catalog/settings records. A changed total is rejected for review. The customer order
+is created with `status: pending`; it does not capture payment or mark orders paid.
+Product and shipping-address snapshots are retained with the order.
+
+The conditional order write and user-scoped request ID make retries idempotent.
+Client retry IDs survive a page reload in session storage until cart cleanup
+succeeds. After order creation, the frontend removes only submitted quantities
+from the cart and links to account order history. Existing model permissions keep
+customer orders read-only for their owner and writable only by admins/Lambda.
+Deploy the updated CustomerOrder fields and Lambda IAM permissions before serving
+the new frontend. Guest shoppers sign in and choose a saved address before ordering.

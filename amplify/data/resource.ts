@@ -47,6 +47,11 @@ const schema = a.schema({
     currency: a.string().required(),
     items: a.json().required(),
     trackingUrl: a.url(),
+    shippingAddress: a.json(),
+    subtotal: a.float(),
+    discount: a.float(),
+    shipping: a.float(),
+    requestFingerprint: a.string(),
   }).authorization(allow => [
     allow.ownerDefinedIn("owner").to(["read"]),
     allow.groups(["Admins"]),
