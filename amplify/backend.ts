@@ -69,6 +69,11 @@ for (const [model, variable] of [
   if (model === 'PaymentSettings' || model === 'CustomerOrder') table.grantReadWriteData(apiLambda);
   else table.grantReadData(apiLambda);
 }
+// Amplify exposes imported tables without index metadata, so table grants omit GSIs.
+apiLambda.addToRolePolicy(new PolicyStatement({
+  actions: ['dynamodb:Query'],
+  resources: ['byEmail', 'byTrackingNumber'].map(index => `${backend.data.resources.tables.CustomerOrder.tableArn}/index/${index}`),
+}));
 const httpApi = new HttpApi(backend.createStack('shop-http-api'), 'ShopHttpApi', {
   corsPreflight: {
     allowOrigins: ['*'], allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.PUT],

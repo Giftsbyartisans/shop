@@ -115,7 +115,11 @@ export async function handler(event: APIGatewayProxyEventV2) {
       const item = result.Items?.[0];
       if (!item) throw new OrderError("No order matches those details.", 404);
       return json({ order: publicOrder(Object.fromEntries(Object.entries(item).map(([key, value]) => [key, decode(value)]))) });
-    } catch (error) { return json({ error: error instanceof OrderError ? error.message : "Track order is temporarily unavailable. Try again." }, error instanceof OrderError ? error.status : 503); }
+    } catch (error) {
+      // Log the error class only; never log email, codes, or order details.
+      if (!(error instanceof OrderError)) console.error("Track order backend failure", { path, errorName: error instanceof Error ? error.name : "UnknownError" });
+      return json({ error: error instanceof OrderError ? error.message : "Track order is temporarily unavailable. Try again." }, error instanceof OrderError ? error.status : 503);
+    }
   }
   if ((path === "/orders" || /^\/orders\/[^/]+$/.test(path)) && method === "GET") {
     const token = event.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
