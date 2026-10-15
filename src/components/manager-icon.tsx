@@ -1,5 +1,6 @@
 export default function ManagerIcon({ name }: { name: string }) {
   const paths: Record<string, string> = {
+    Orders: "M6 4h12v17H6zM9 2h6v4H9zM9 10h6M9 14h6M9 18h4",
     PayPal: "M3 5h18v14H3zM3 9h18M7 15h4",
     "Admin preferences": "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6",
     "Import & export": "M7 18V4m-4 4 4-4 4 4M17 6v14m-4-4 4 4 4-4",

@@ -1,3 +1,4 @@
+import { orderUpdate } from "../../../src/lib/admin-orders";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { checkoutEmail } from "../../../src/lib/checkout-contact";
 import { digest, newChallenge, orderPreview, publicOrder } from "./order-verification";
@@ -185,10 +186,35 @@ export async function handler(event: APIGatewayProxyEventV2) {
       return json(receipt, 201);
     } catch (error) { return json({ error: error instanceof OrderError ? error.message : "Could not place your order. Please retry." }, error instanceof OrderError ? error.status : 503); }
   }
-  if (!((path === "/admin/paypal" && (method === "GET" || method === "PUT")) || (path === "/import-image" && method === "POST"))) return json({ error: "Not found." }, 404);
+  if (!((path === "/admin/orders" && method === "GET") || (/^\/admin\/orders\/[a-zA-Z0-9_-]{1,200}$/.test(path) && method === "PUT") || (path === "/admin/paypal" && (method === "GET" || method === "PUT")) || (path === "/import-image" && method === "POST"))) return json({ error: "Not found." }, 404);
   const token = event.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
   if (!token) return json({ error: "Admin sign-in required." }, 401);
   try { await verifier.verify(token); } catch { return json({ error: "Admin sign-in required." }, 403); }
+  if (path === "/admin/orders" || path.startsWith("/admin/orders/")) {
+    const adminOrder = (item: Record<string, AttributeValue>) => {
+      const decoded = Object.fromEntries(Object.entries(item).map(([key,value]) => [key, decode(value)]));
+      return { ...publicOrder(decoded), isGuest: typeof decoded.owner === "string" && decoded.owner.startsWith("guest:") };
+    };
+    try {
+      if (method === "GET") {
+        let cursor: Record<string, AttributeValue> | undefined;
+        const token = event.queryStringParameters?.nextToken;
+        if (token) { try { const parsed = JSON.parse(Buffer.from(token, "base64url").toString()); if (token.length > 1024 || typeof parsed.id?.S !== "string" || Object.keys(parsed).length !== 1) throw new Error(); cursor = { id: { S: parsed.id.S } }; } catch { return json({ error: "Invalid order page." }, 400); } }
+        const result = await db.send(new ScanCommand({ TableName: process.env.ORDER_TABLE, Limit: 100, ExclusiveStartKey: cursor, ConsistentRead: true }));
+        return json({ orders: (result.Items ?? []).map(adminOrder), nextToken: result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url") : null });
+      }
+      let update;
+      try { update = orderUpdate(body(event)); } catch (error) { return json({ error: (error as Error).message }, 400); }
+      const values: Record<string, AttributeValue> = { ":progress": { S: update.progress }, ":now": { S: new Date().toISOString() } };
+      let expression = "SET fulfillmentProgress = :progress, updatedAt = :now";
+      if (update.shipBy) { expression += ", shipBy = :ship"; values[":ship"] = { S: update.shipBy }; }
+      if (update.progress === "completed") expression += ", completedAt = :now";
+      const remove = [...(update.shipBy === null ? ["shipBy"] : []), ...(update.progress !== "completed" ? ["completedAt"] : [])];
+      if (remove.length) expression += ` REMOVE ${remove.join(", ")}`;
+      const result = await db.send(new UpdateItemCommand({ TableName: process.env.ORDER_TABLE, Key: { id: { S: path.split("/").pop()! } }, ConditionExpression: "attribute_exists(id)", UpdateExpression: expression, ExpressionAttributeValues: values, ReturnValues: "ALL_NEW" }));
+      return json({ order: adminOrder(result.Attributes ?? {}) });
+    } catch (error) { return json({ error: (error as Error).name === "ConditionalCheckFailedException" ? "Order not found." : "Could not load or update orders." }, (error as Error).name === "ConditionalCheckFailedException" ? 404 : 503); }
+  }
   if (path === "/admin/paypal") {
     try {
       const current = await readPayPalSettings();

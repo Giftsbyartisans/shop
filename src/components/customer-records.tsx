@@ -11,6 +11,10 @@ const fields = [
   ["country", "Country", "country-name", true], ["phone", "Mobile number", "tel", true],
 ] as const;
 
+function OrderLinkArrow() {
+  return <svg className={styles.orderLinkArrow} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg>;
+}
+
 export default function CustomerRecords({ section }: { section: "addresses" | "orders" }) {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
@@ -95,11 +99,11 @@ export default function CustomerRecords({ section }: { section: "addresses" | "o
         <button className="primary" disabled={busy} onClick={() => { setEditing("new"); setLabelType("home"); setError(""); setNotice(""); }}>Add shipping address</button>
       </>}
     </> : orders.length ? <div className={styles.recordList}>{orders.map(order => <article className={styles.recordCard} key={order.id}>
-      <div className={styles.orderHeading}><h3><Link href={`/account/orders/${encodeURIComponent(order.id)}`} target="_blank" rel="noopener noreferrer">{order.isSample ? "Sample order" : "Order"} {order.orderNumber} ↗</Link></h3><span className={styles.orderStatus}>{order.status === "pending" ? "Pending · unpaid" : order.status || "pending"}</span></div>
+      <div className={styles.orderHeading}><h3><Link href={`/account/orders/${encodeURIComponent(order.id)}`} target="_blank" rel="noopener noreferrer">{order.isSample ? "Sample order" : "Order"} {order.orderNumber}</Link></h3><span className={styles.orderStatus}>{order.status === "pending" ? "Pending · unpaid" : order.status || "pending"}</span></div>
       <p>{new Date(order.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
       <p>Total: {new Intl.NumberFormat("en-US", { style: "currency", currency: /^[A-Z]{3}$/.test(order.currency) ? order.currency : "USD" }).format(order.total)}</p>
-      <Link href={`/account/orders/${encodeURIComponent(order.id)}`} target="_blank" rel="noopener noreferrer" className={styles.orderSummaryLink}>View full order summary ↗</Link>
-      {order.trackingUrl?.startsWith("https://") && <Link href={order.trackingUrl} className={styles.orderTrackingLink} target="_blank" rel="noopener noreferrer">Track shipment ↗</Link>}
+      <Link href={`/account/orders/${encodeURIComponent(order.id)}`} target="_blank" rel="noopener noreferrer" className={styles.orderSummaryLink}><span className={styles.orderSummaryLabel}>View full order summary <OrderLinkArrow /></span></Link>
+      {order.trackingUrl?.startsWith("https://") && <Link href={order.trackingUrl} className={styles.orderTrackingLink} target="_blank" rel="noopener noreferrer">Track shipment <OrderLinkArrow /></Link>}
     </article>)}</div> : <div className={styles.emptyState}><h2>No orders yet</h2><p>Your shop orders will appear here when they are recorded.</p><Link href="/collection">Explore the collection →</Link></div>}
   </>;
 }

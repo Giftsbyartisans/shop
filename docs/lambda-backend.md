@@ -108,6 +108,21 @@ Every new order receives a private random 128-bit tracking number. Footer → Tr
 
 Email users click View full order details to send a six-digit code through SES. `/order-finder/code` stores a salted code hash with a random challenge, ten-minute expiry, and a 60-second resend cooldown in a private DynamoDB table. `/order-finder/verify` atomically counts attempts (maximum five), consumes the challenge once, and returns orders matching the normalized email. TTL removes expired records; expiry is also enforced during verification. Lookup and verification credentials remain in POST bodies. The preview intentionally reveals whether an email has orders; API throttling limits requests.
 
-Set `ORDER_EMAIL_FROM` in the Amplify build environment to an SES-verified **email identity** in the backend region before deploying. Lambda grants SendEmail for that exact identity. SES sandbox accounts require verified recipients; production SES access is necessary for arbitrary customer addresses. Missing sender configuration produces a clear unavailable message rather than exposing full details. No code is returned to the browser or logged. Deploy the `byEmail` index, verification table, SES permission, and both verification routes with the frontend. Guest address drafts stay in session storage until order creation. Orders remain sample and unpaid.
+The default sender is `noreply@giftsbyartisans.com`, authorized through the SES-verified domain identity `giftsbyartisans.com` in the backend region (`us-east-1`). No sender inbox is required for a verified domain. Optional Amplify build variables `ORDER_EMAIL_FROM` and `ORDER_EMAIL_IDENTITY` override the sender and verified identity (domain or email). Lambda grants SendEmail for that identity and restricts the From address to the configured sender. SES sandbox accounts require verified recipients; production SES access is necessary for arbitrary customer addresses. Missing sender configuration produces a clear unavailable message rather than exposing full details. No code is returned to the browser or logged. Deploy the `byEmail` index, verification table, SES permission, and both verification routes with the frontend. Guest address drafts stay in session storage until order creation. Orders remain sample and unpaid.
 
 AppSync CustomerOrder access is admin-only. Guest records cannot be claimed through an account username matching their email-derived owner identity; account reads filter out the reserved guest namespace.
+
+## Admin orders
+
+Admin → Orders loads all order pages through `GET /admin/orders`, protected by
+verified Admins-group access tokens. Cards group orders by date, show archived
+items, prices and shipping/contact details, and support selection and bulk
+completion. New includes new, buyer-discussion and in-progress orders; Completed
+contains only completed fulfillment records. Fulfillment progress is independent
+of payment status. Completing a sample order does not collect or record payment.
+`PUT /admin/orders/{id}` validates progress and an optional ship-by calendar date,
+conditionally updates existing orders, and returns the updated record. Reopening
+removes the completion timestamp. Ship-by dates are explicitly set by admins;
+missing dates appear under No estimate. Filters use the administrator's local date.
+Deploy the new API routes and CustomerOrder fulfillmentProgress, shipBy and
+completedAt fields together with the admin interface.

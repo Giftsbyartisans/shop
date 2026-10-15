@@ -56,6 +56,9 @@ const schema = a.schema({
     isSample: a.boolean(),
     email: a.email(),
     trackingNumber: a.string(),
+    fulfillmentProgress: a.enum(["new", "buyer_discussion", "in_progress", "completed"]),
+    shipBy: a.date(),
+    completedAt: a.datetime(),
   }).authorization(allow => [
     allow.groups(["Admins"]),
   ]).secondaryIndexes(index => [index("trackingNumber").name("byTrackingNumber"), index("email").name("byEmail")]),

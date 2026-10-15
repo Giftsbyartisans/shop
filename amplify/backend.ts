@@ -49,10 +49,12 @@ const verificationTable = new Table(backend.createStack('order-verification'), '
 });
 verificationTable.grantReadWriteData(apiLambda);
 backend.shopApi.addEnvironment('VERIFICATION_TABLE', verificationTable.tableName);
-backend.shopApi.addEnvironment('ORDER_EMAIL_FROM', process.env.ORDER_EMAIL_FROM ?? '');
+const orderEmailFrom = process.env.ORDER_EMAIL_FROM || 'noreply@giftsbyartisans.com';
+const orderEmailIdentity = process.env.ORDER_EMAIL_IDENTITY || 'giftsbyartisans.com';
+backend.shopApi.addEnvironment('ORDER_EMAIL_FROM', orderEmailFrom);
 apiLambda.addToRolePolicy(new PolicyStatement({ actions: ['ses:SendEmail'], resources: [
-  Stack.of(apiLambda).formatArn({ service: 'ses', resource: 'identity', resourceName: process.env.ORDER_EMAIL_FROM || 'unconfigured' }),
-] }));
+  Stack.of(apiLambda).formatArn({ service: 'ses', resource: 'identity', resourceName: orderEmailIdentity }),
+], conditions: { StringEquals: { 'ses:FromAddress': orderEmailFrom } } }));
 backend.shopApi.addEnvironment('USER_POOL_ID', backend.auth.resources.userPool.userPoolId);
 backend.shopApi.addEnvironment('USER_POOL_CLIENT_ID', backend.auth.resources.userPoolClient.userPoolClientId);
 backend.shopApi.addEnvironment('PAYPAL_MODE', process.env.AWS_BRANCH === 'main' ? 'live' : 'sandbox');
@@ -84,6 +86,8 @@ const integration = new HttpLambdaIntegration('ShopIntegration', apiLambda);
 (httpApi.defaultStage!.node.defaultChild as CfnStage).defaultRouteSettings = {
   throttlingBurstLimit: 50, throttlingRateLimit: 25,
 };
+httpApi.addRoutes({ path: '/admin/orders', methods: [HttpMethod.GET], integration });
+httpApi.addRoutes({ path: '/admin/orders/{id}', methods: [HttpMethod.PUT], integration });
 httpApi.addRoutes({ path: '/admin/paypal', methods: [HttpMethod.GET, HttpMethod.PUT], integration });
 httpApi.addRoutes({ path: '/import-image', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/favicon', methods: [HttpMethod.GET], integration });

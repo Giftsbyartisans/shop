@@ -81,3 +81,11 @@
 .orderSummaryLink::after{content:"";position:absolute;inset:0;border-radius:12px}
 .orderSummaryLink:focus-visible::after{outline:2px solid #476827;outline-offset:3px}
 .orderTrackingLink{position:relative;z-index:1}
+
+.orderLinkArrow{display:inline-block;flex-shrink:0;vertical-align:-2px;margin-left:4px}
+
+.orderHeading a{position:relative;z-index:1}
+.orderHeading a,.recordCard>.orderSummaryLink,.recordCard>.orderTrackingLink{text-decoration:none;text-underline-offset:3px}
+.orderHeading a:hover,.orderSummaryLabel:hover,.recordCard>.orderTrackingLink:hover{text-decoration:underline}
+
+.orderSummaryLabel{position:relative;z-index:1}
