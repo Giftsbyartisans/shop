@@ -88,6 +88,7 @@ const integration = new HttpLambdaIntegration('ShopIntegration', apiLambda);
 };
 httpApi.addRoutes({ path: '/admin/orders', methods: [HttpMethod.GET], integration });
 httpApi.addRoutes({ path: '/admin/orders/{id}', methods: [HttpMethod.PUT], integration });
+httpApi.addRoutes({ path: '/paypal/confirmation', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/paypal/config', methods: [HttpMethod.GET], integration });
 httpApi.addRoutes({ path: '/paypal/create', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/paypal/capture', methods: [HttpMethod.POST], integration });
@@ -99,6 +100,7 @@ httpApi.addRoutes({ path: '/order-finder/verify', methods: [HttpMethod.POST], in
 httpApi.addRoutes({ path: '/order-finder', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/orders/{id}', methods: [HttpMethod.GET], integration });
 httpApi.addRoutes({ path: '/orders', methods: [HttpMethod.GET, HttpMethod.POST], integration });
+httpApi.addRoutes({ path: '/cart/status', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/cart', methods: [HttpMethod.POST], integration });
 // Keep the prior path for already-loaded frontend clients during deployment.
 httpApi.addRoutes({ path: '/cart/quote', methods: [HttpMethod.POST], integration });

@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { beginOrderConfirmation } from '@/lib/checkout-navigation';
 import { backendApiUrl } from '@/lib/backend-api';
 import { cartLineKey, type CartItem } from '@/lib/shopping';
 import { updateShopping } from './shopping-controls';
-type Receipt = { orderNumber:string; trackingNumber:string; isSample:boolean };
+type Receipt = { id:string; orderNumber:string; trackingNumber:string; isSample:boolean };
 type Buttons = { render:(container:HTMLElement)=>Promise<void>; close:()=>Promise<void> };
 type SDK = { Buttons:(options:{style:{layout:string};createOrder:()=>Promise<string>;onApprove:(data:{orderID:string})=>Promise<void>;onCancel:()=>void;onError:(error:unknown)=>void})=>Buttons };
 const sdks = new Map<string,Promise<SDK>>();
@@ -21,9 +23,10 @@ function loadSDK(clientId:string,environment:string) {
     document.head.appendChild(script);
   }); sdks.set(key,promise); return promise;
 }
-export default function PayPalCheckout({items,total,addressId,email,guestAddress,enabled,onPlaced}:{items:CartItem[];total:number;addressId:string;email:string;guestAddress?:Record<string,string>;enabled:boolean;onPlaced:(orderNumber:string,trackingNumber:string,isSample:boolean)=>void}) {
+export default function PayPalCheckout({items,total,addressId,email,guestAddress,enabled,cartId}:{items:CartItem[];total:number;addressId:string;email:string;guestAddress?:Record<string,string>;enabled:boolean;cartId:string}) {
+  const router = useRouter();
   const container = useRef<HTMLDivElement>(null);
-  const latest = useRef({items,total,addressId,email,guestAddress,onPlaced}); latest.current = {items,total,addressId,email,guestAddress,onPlaced};
+  const latest = useRef({items,total,addressId,email,guestAddress,cartId}); latest.current = {items,total,addressId,email,guestAddress,cartId};
   const [error,setError] = useState(''), [loading,setLoading] = useState(true), [busy,setBusy] = useState(false), [mode,setMode] = useState('');
   const pending = useRef<Record<string,unknown> | null>(null), finished = useRef(false);
   const frontendMode = process.env.NODE_ENV === 'production' ? 'live' : 'sandbox';
@@ -34,21 +37,24 @@ export default function PayPalCheckout({items,total,addressId,email,guestAddress
   }
   async function checkoutInput() {
     const session = await fetchAuthSession(); const current = latest.current;
-    const signature = JSON.stringify({customer:session.tokens?.accessToken.payload.sub,items:current.items,total:current.total,addressId:current.addressId,email:current.email,guestAddress:current.guestAddress,mode:frontendMode});
+    const signature = JSON.stringify({cartId:current.cartId,customer:session.tokens?.accessToken.payload.sub,items:current.items,total:current.total,addressId:current.addressId,email:current.email,guestAddress:current.guestAddress,mode:frontendMode});
     let requestId = crypto.randomUUID();
     try { const stored = JSON.parse(sessionStorage.getItem('shop-paypal-intent') || 'null'); if (stored?.signature === signature && typeof stored.requestId === 'string') requestId = stored.requestId; sessionStorage.setItem('shop-paypal-intent',JSON.stringify({signature,requestId})); } catch { if (pending.current?.signature === signature) requestId = pending.current.requestId as `${string}-${string}-${string}-${string}-${string}`; }
-    const input = {items:current.items,expectedTotal:current.total,addressId:current.addressId,email:current.email,guestAddress:current.guestAddress,requestId};
+    const input = {cartId:current.cartId,items:current.items,expectedTotal:current.total,addressId:current.addressId,email:current.email,guestAddress:current.guestAddress,requestId};
     pending.current = {...input,signature}; return input;
   }
   async function finish(receipt:Receipt) {
     if (finished.current) return; finished.current = true;
     const snapshot = latest.current;
+    try { sessionStorage.setItem(`shop-order-confirmation:${receipt.id}`,JSON.stringify({input:pending.current,mode:frontendMode})); } catch { /* Account users can still view orders from their account. */ }
+    const confirmation = beginOrderConfirmation(receipt.id);
+    router.replace(confirmation);
     // Clear only purchased quantities; preserve products added during payment.
     try { const quantities = new Map(snapshot.items.map(item => [cartLineKey(item),item.quantity]));
       await updateShopping(current => ({...current,cart:current.cart.flatMap(item => { const quantity = item.quantity-(quantities.get(cartLineKey(item))??0); return quantity>0 ? [{...item,quantity}] : []; })}));
       try { sessionStorage.removeItem('shop-paypal-intent'); } catch { /* Storage is optional. */ }
     } catch { /* Payment is confirmed even if cart synchronization is unavailable. */ }
-    snapshot.onPlaced(receipt.orderNumber,receipt.trackingNumber,receipt.isSample);
+
   }
   useEffect(() => {
     if (!enabled) { setLoading(false); return; }

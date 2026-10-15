@@ -21,7 +21,7 @@ const listingFields = () => ({
 const schema = a.schema({
   PaymentSettings: a.model({ encryptedContent: a.string().required() })
     .authorization(allow => [allow.groups(["Admins"])]),
-  CustomerCart: a.model({ items: a.json().required() })
+  CustomerCart: a.model({ cartId: a.string(), items: a.json().required() })
     .authorization(allow => [allow.owner()]),
   CustomerFavorite: a.model({ listingId: a.string().required() })
     .authorization(allow => [allow.owner()]),
@@ -41,6 +41,7 @@ const schema = a.schema({
     email: a.email(),
   }).authorization(allow => [allow.owner()]),
   CustomerOrder: a.model({
+    cartId: a.string(),
     owner: a.string().required(),
     orderNumber: a.string().required(),
     status: a.enum(["pending", "paid", "processing", "shipped", "delivered", "cancelled", "refunded"]),

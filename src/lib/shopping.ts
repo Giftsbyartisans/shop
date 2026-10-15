@@ -1,5 +1,5 @@
 export type CartItem = { id: string; quantity: number; personalization?: string };
-export type Shopping = { cart: CartItem[]; favorites: string[] };
+export type Shopping = { cartId?: string; cart: CartItem[]; favorites: string[] };
 export function cartLineKey(item: Pick<CartItem, "id" | "personalization">) { return item.personalization ? JSON.stringify([item.id, item.personalization]) : item.id; }
 export function addCartItem(state: Shopping, id: string, text = "", quantity = 1): Shopping {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error("Choose a quantity from 1 to 99.");
@@ -27,7 +27,7 @@ export function parseShopping(raw: string): Shopping {
         { const line: CartItem = { id: item.id, quantity: Math.min(99, item.quantity), ...(typeof item.personalization === "string" && item.personalization.trim() ? { personalization: item.personalization.trim().slice(0, 1024) } : {}) }; cart.set(cartLineKey(line), line); }
     }
     const favorites: string[] = Array.isArray(value?.favorites) ? value.favorites.filter((id: unknown): id is string => typeof id === "string" && !!id) : [];
-    return { cart: [...cart.values()], favorites: [...new Set(favorites)] };
+    return { ...(typeof value.cartId === "string" ? { cartId: value.cartId } : {}), cart: [...cart.values()], favorites: [...new Set(favorites)] };
   } catch { return { cart: [], favorites: [] }; }
 }
 export function changeQuantity(state: Shopping, id: string, quantity: number): Shopping {

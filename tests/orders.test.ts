@@ -126,3 +126,10 @@ test('PayPal orders use a separate retry namespace and are never marked paid on 
   assert.equal(records.get(live.id)!.paypalMode,'live');
   assert.deepEqual(await placeOrder(input,user,store,'live'),live);
 });
+test('same cart across tabs and request UUIDs creates only one PayPal order',async()=>{
+ const {store,records}=setup();const cartId='c7420300-90a4-4eea-a443-fbc8b20b11dd';
+ const [first,second]=await Promise.all([placeOrder({...input,cartId},user,store,'sandbox'),placeOrder({...input,cartId,requestId:'b7420300-90a4-4eea-a443-fbc8b20b11dd'},user,store,'sandbox')]);
+ assert.equal(first.id,second.id);assert.equal(records.size,1);assert.equal(records.get(first.id)!.cartId,cartId);
+ await assert.rejects(placeOrder({...input,cartId,email:'different@example.com'},user,store,'sandbox'),/request has changed/);
+ await assert.rejects(placeOrder({...input,cartId:'invalid'},user,store,'sandbox'),/Invalid cart ID/);
+});

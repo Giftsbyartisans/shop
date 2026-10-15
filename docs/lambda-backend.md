@@ -158,3 +158,33 @@ for payment support rather than deleting them blindly.
 Deploy the new PayPal fields and routes with the frontend. Confirm a full sandbox
 buyer checkout, cancellation and retry before using live credentials. No real
 charge is performed by local automated tests.
+
+After PayPal capture, checkout redirects to `/order-confirmation/<id>`. The page
+re-reads the stored paid order through `POST /paypal/confirmation`; it does not
+trust a paid flag in the URL or session storage. Guest access requires the
+original checkout UUID and matching payload kept in this browser tab's session
+storage. The confirmation route cannot create or capture orders. Signed-in users
+without that tab's proof can fall back to their authenticated order-detail API.
+Confirmation refreshes work while the proof or account session remains available;
+other guest sessions use Track order and email verification. Order details and
+checkout proof are not placed in the URL, and the page is excluded from indexing.
+
+## Cart identity and placed-cart checks
+
+Guest carts persist a UUID alongside local shopping data. Account carts persist
+`cartId` in their owner-protected CustomerCart record. Legacy active carts receive
+an ID on load. The ID remains stable across reloads and identical cart writes;
+changing products, personalization, quantities or clearing purchased items creates
+a fresh cart version. Orders save that cartId. PayPal order IDs in the shop's
+DynamoDB table are deterministic per cart UUID and environment, so separate tabs
+or browser request UUIDs cannot create multiple payment orders for the same cart
+version. A changed checkout payload for an existing payment snapshot is rejected.
+
+Cart and checkout screens call `POST /cart/status` with the current UUID. Lambda
+returns only a placed boolean, never order/customer details. A paid PayPal order
+(or a previously submitted sample order) marks that cart placed. Unpaid PayPal
+attempts remain resumable. Checks must succeed before checkout proceeds; placed
+carts redirect home even if stale purchased items remain in browser storage.
+Empty carts also redirect home. The active confirmed-payment navigation retains
+precedence and opens its confirmation page. Deploy CustomerCart/CustomerOrder
+cartId fields and the status route before releasing these frontend checks.

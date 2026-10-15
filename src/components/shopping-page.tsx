@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCartPlacement } from "./use-cart-placement";
 import BuyNow from "./buy-now";
 import { useCartTotals } from "./use-cart-totals";
 import { useEffect, useState } from "react";
@@ -15,15 +17,20 @@ import ShopImage from "./shop-image";
 import { resolvePersonalization } from "@/lib/personalization";
 
 export default function ShoppingPage({ kind, listings, content, ready, loadError }: { kind: "cart" | "favorites"; listings: Listing[]; content: ShopContent; ready: boolean; loadError?: string }) {
+  const router = useRouter();
   const state = useShopping();
   const favorites = useFavorites();
   const cart = useCart();
   if (kind === "cart" && (cart.loading || cart.error)) ready = false;
   if (kind === "favorites" && (favorites.loading || favorites.error)) ready = false;
+  const [clearingCart, setClearingCart] = useState(false);
   const [error, setError] = useState("");
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
   useEffect(() => { setEstimatedDelivery(deliveryEstimate(new Date())); }, []);
   const selected: CartItem[] = kind === "cart" ? state.cart : state.favorites.map(id => ({ id, quantity: 1 }));
+  const placement = useCartPlacement(cart.cartId, kind === "cart" && !cart.loading && !cart.error && cart.items.length > 0);
+  const emptyCart = kind === "cart" && !cart.loading && !cart.error && !selected.length;
+  useEffect(() => { if (emptyCart || placement.placed) router.replace("/"); }, [emptyCart, placement.placed, router]);
   const catalog = new Map(listings.filter(item => item.published).map(item => [item.id, resolvePersonalization(item, content)]));
   const cartKey = JSON.stringify({ items: selected, sale: [content.saleEnabled, content.salePercent], listings });
   const { totals: cartTotals, error: cartError } = useCartTotals(selected, kind === "cart" && ready, cartKey);
@@ -35,8 +42,22 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
     try { if (kind === "favorites") await setFavorite(id, false); else await updateShopping(current => changeQuantity(current, id, 0)); setError(""); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not remove this item."); }
   }
+  async function clearEntireCart() {
+    if (clearingCart) return;
+    setClearingCart(true); setError("");
+    try {
+      await updateShopping(current => ({ ...current, cart: [] }));
+      try { sessionStorage.removeItem("shop-paypal-intent"); sessionStorage.removeItem("shop-pending-order"); } catch { /* Cart data is already cleared. */ }
+      router.replace("/");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not empty your cart. Please retry."); }
+    finally { setClearingCart(false); }
+  }
+  const emptyCartButton = <button type="button" disabled={clearingCart || cart.loading || !!cart.error} onClick={clearEntireCart}>{clearingCart ? "Emptying cart…" : "Empty cart"}</button>;
+  if (placement.checking && kind === "cart") return <main className="shop shopping-page"><p role="status">Checking cart status…</p></main>;
+  if (placement.error && kind === "cart") return <main className="shop shopping-page"><p role="alert">{placement.error}</p>{error && <p role="alert">{error}</p>}<button type="button" onClick={placement.retry}>Try again</button>{emptyCartButton}</main>;
+  if (emptyCart || placement.placed) return <main className="shop shopping-page"><p role="status">Returning to home…</p></main>;
   return <main className="shop shopping-page">
-    <h1>{kind === "cart" ? "Your cart" : "Your favorites"}</h1>
+    <div className="shopping-page-heading"><h1>{kind === "cart" ? "Your cart" : "Your favorites"}</h1>{kind === "cart" && selected.length > 0 && emptyCartButton}</div>
     {kind === "favorites" && <p className="muted">{favorites.signedIn ? "Favorites are saved to your account." : "Saved in this browser."} Prices reflect the current shop catalog.</p>}
     {kind === "cart" && cart.error && <p role="alert">{cart.error} <button onClick={() => refreshCart()}>Try again</button></p>}
     {kind === "favorites" && favorites.loading && <p role="status">Loading favorites…</p>}
@@ -55,13 +76,13 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
         <div><h2>{item ? <Link href={`/listing/${encodeURIComponent(item.id)}`}>{item.title}</Link> : "Product no longer available"}</h2>
           {item && <p className="shopping-item-price"><strong>{formatPrice(price)}</strong>{discounted && <><del>{formatPrice(item.price)}</del><span className="shopping-sale-tag">{percentOff}% off</span></>}{kind === "cart" && <Link className="free-delivery" href="/policies/delivery">Free delivery</Link>}</p>}
           {entry.personalization && <div className="cart-personalization-preview"><strong>Personalization {fee > 0 ? `(+${formatPrice(fee)} per item)` : "(free)"}</strong><p>{entry.personalization}</p></div>}
-          {kind === "cart" && item && <label className="shopping-quantity">Quantity<select aria-label={`Quantity for ${item.title}`} value={entry.quantity} onChange={event => quantity(lineKey, Number(event.target.value))}>{Array.from({ length: 99 }, (_, index) => <option key={index + 1}>{index + 1}</option>)}</select></label>}
+          {kind === "cart" && item && <label className="shopping-quantity">Quantity<select disabled={clearingCart} aria-label={`Quantity for ${item.title}`} value={entry.quantity} onChange={event => quantity(lineKey, Number(event.target.value))}>{Array.from({ length: 99 }, (_, index) => <option key={index + 1}>{index + 1}</option>)}</select></label>}
           {kind === "cart" && item && <p className="shopping-delivery-estimate">Estimated delivery: {estimatedDelivery || "10–15 days"}</p>}
           {kind === "favorites" && item && <ProductShopping id={item.id} compact />}
         </div>
         <div className="shopping-item-actions">
           {kind === "cart" && item && <strong>{cartTotals ? formatPrice(cartTotals.lines.find(line => line.key === lineKey)?.total ?? 0) : "—"}</strong>}
-          <button className="shopping-remove" onClick={() => remove(kind === "cart" ? lineKey : entry.id)} aria-label={`Remove ${item?.title || "unavailable product"} from ${kind}`} title="Remove product">
+          <button disabled={clearingCart} className="shopping-remove" onClick={() => remove(kind === "cart" ? lineKey : entry.id)} aria-label={`Remove ${item?.title || "unavailable product"} from ${kind}`} title="Remove product">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" /></svg>
           </button>
         </div>

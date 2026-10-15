@@ -1,3 +1,4 @@
+import { validCartId } from "../../../src/lib/cart-identity";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { checkoutEmail, checkoutAddress } from "../../../src/lib/checkout-contact";
 import { calculateCartTotals } from "../../../src/lib/cart-totals";
@@ -6,7 +7,11 @@ import { listingPrice, type Listing } from "../../../src/lib/catalog";
 import { resolvePersonalization } from "../../../src/lib/personalization";
 import type { ShopContent } from "../../../src/lib/content";
 export class OrderError extends Error { constructor(message: string, public status = 400) { super(message); } }
-export type OrderRecord = { email: string; trackingNumber: string; isSample: boolean; id: string; owner: string; orderNumber: string; status: "pending" | "paid"; paymentMethod?: string; paypalMode?: "sandbox" | "live"; paypalOrderId?: string; paypalCaptureId?: string; total: number; currency: string; items: string; shippingAddress: string; subtotal: number; discount: number; shipping: number; requestFingerprint: string; createdAt: string; updatedAt: string; __typename: string };
+export type OrderRecord = { cartId?: string; email: string; trackingNumber: string; isSample: boolean; id: string; owner: string; orderNumber: string; status: "pending" | "paid"; paymentMethod?: string; paypalMode?: "sandbox" | "live"; paypalOrderId?: string; paypalCaptureId?: string; total: number; currency: string; items: string; shippingAddress: string; subtotal: number; discount: number; shipping: number; requestFingerprint: string; createdAt: string; updatedAt: string; __typename: string };
+export function cartOrderId(cartId: string, mode: "sandbox" | "live" | "sample") {
+  if (!validCartId(cartId)) throw new OrderError("Invalid cart ID.");
+  return createHash("sha256").update(`cart:${cartId}:${mode}`).digest("hex");
+}
 export function orderOwners(user: { sub: string; username: string }) {
   return [`${user.sub}::${user.username}`, user.sub, user.username].filter(owner => !owner.startsWith("guest:"));
 }
@@ -22,8 +27,9 @@ export type OrderStore = {
   create(order: OrderRecord): Promise<boolean>;
 };
 export async function placeOrder(input: unknown, user: { sub: string; username: string } | null, store: OrderStore, paymentMode?: "sandbox" | "live") {
-  const body = input as { requestId?: string; addressId?: string; items?: CartItem[]; expectedTotal?: number; email?: string; guestAddress?: unknown };
+  const body = input as { cartId?: string; requestId?: string; addressId?: string; items?: CartItem[]; expectedTotal?: number; email?: string; guestAddress?: unknown };
   if (!body || typeof body.requestId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(body.requestId) || (user !== null && (typeof body.addressId !== "string" || !body.addressId || body.addressId.length > 200)) || !Array.isArray(body.items) || !body.items.length || body.items.length > 100 || !Number.isFinite(body.expectedTotal)) throw new OrderError("Choose a shipping address and add products before ordering.");
+  if (body.cartId !== undefined && !validCartId(body.cartId)) throw new OrderError("Invalid cart ID. Refresh your cart.");
   let email: string;
   try { email = checkoutEmail(body.email); } catch (error) { throw new OrderError((error as Error).message); }
   const items = body.items.map(entry => {
@@ -33,7 +39,7 @@ export async function placeOrder(input: unknown, user: { sub: string; username: 
   if (new Set(items.map(cartLineKey)).size !== items.length) throw new OrderError("Duplicate cart lines are not allowed.");
   const guestIdentity = createHash("sha256").update(email).digest("hex");
   const owner = user ? `${user.sub}::${user.username}` : `guest:${guestIdentity}`;
-  const id = createHash("sha256").update(`${user?.sub ?? owner}:${body.requestId}${paymentMode ? `:paypal:${paymentMode}` : ""}`).digest("hex");
+  const id = body.cartId ? cartOrderId(body.cartId,paymentMode ?? "sample") : createHash("sha256").update(`${user?.sub ?? owner}:${body.requestId}${paymentMode ? `:paypal:${paymentMode}` : ""}`).digest("hex");
   const fingerprint = createHash("sha256").update(JSON.stringify({ items, addressId: user ? body.addressId : undefined, guestAddress: user ? undefined : body.guestAddress, email, expectedTotal: body.expectedTotal })).digest("hex");
   const receipt = (order: OrderRecord) => {
     if (order.owner !== owner || order.requestFingerprint !== fingerprint) throw new OrderError("This order request has changed. Refresh your cart before ordering.", 409);
@@ -57,7 +63,7 @@ export async function placeOrder(input: unknown, user: { sub: string; username: 
     return { ...entry, title: item.title, image: item.image, unitPrice: Math.round(listingPrice(item, content.saleEnabled, content.salePercent) * 100) / 100, personalizationPrice: entry.personalization ? item.personalizationPrice ?? 0 : 0, total: totals.lines[index].total };
   });
   const now = new Date().toISOString();
-  const order: OrderRecord = { email, trackingNumber: `GBA-${randomBytes(16).toString("hex").toUpperCase()}`, isSample: paymentMode !== "live", ...(paymentMode ? { paymentMethod: "paypal", paypalMode: paymentMode } : {}), id, owner, orderNumber: `GBA-${id.slice(0, 12).toUpperCase()}`, status: "pending", total: totals.total, currency: "USD", items: JSON.stringify(snapshots), shippingAddress: JSON.stringify(shippingAddress), subtotal: totals.subtotal, discount: totals.discount, shipping: totals.shipping, requestFingerprint: fingerprint, createdAt: now, updatedAt: now, __typename: "CustomerOrder" };
+  const order: OrderRecord = { ...(body.cartId ? { cartId:body.cartId } : {}), email, trackingNumber: `GBA-${randomBytes(16).toString("hex").toUpperCase()}`, isSample: paymentMode !== "live", ...(paymentMode ? { paymentMethod: "paypal", paypalMode: paymentMode } : {}), id, owner, orderNumber: `GBA-${id.slice(0, 12).toUpperCase()}`, status: "pending", total: totals.total, currency: "USD", items: JSON.stringify(snapshots), shippingAddress: JSON.stringify(shippingAddress), subtotal: totals.subtotal, discount: totals.discount, shipping: totals.shipping, requestFingerprint: fingerprint, createdAt: now, updatedAt: now, __typename: "CustomerOrder" };
   if (!await store.create(order)) {
     const winner = await store.getOrder(id);
     if (!winner) throw new Error("Order could not be confirmed. Retry using the same request.");
