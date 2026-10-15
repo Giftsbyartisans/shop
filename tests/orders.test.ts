@@ -115,3 +115,14 @@ test("account usernames cannot claim email-based guest identities", () => {
   assert.equal(orderOwners(user).includes(guestOwner), false);
   assert.throws(() => ownedOrderDetails({ owner: guestOwner }, user), /Order not found/);
 });
+test('PayPal orders use a separate retry namespace and are never marked paid on creation', async () => {
+  const {store,records}=setup();
+  const sample=await placeOrder(input,user,store);
+  const sandbox=await placeOrder(input,user,store,'sandbox');
+  const live=await placeOrder(input,user,store,'live');
+  assert.equal(new Set([sample.id,sandbox.id,live.id]).size,3);
+  assert.equal(live.status,'pending');assert.equal(live.isSample,false);assert.equal(sandbox.isSample,true);
+  assert.equal(records.get(live.id)!.paymentMethod,'paypal');
+  assert.equal(records.get(live.id)!.paypalMode,'live');
+  assert.deepEqual(await placeOrder(input,user,store,'live'),live);
+});

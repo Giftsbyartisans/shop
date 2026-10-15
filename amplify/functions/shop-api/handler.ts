@@ -1,3 +1,4 @@
+import { paypalClient, captureReceipt } from "./paypal-checkout";
 import { orderUpdate } from "../../../src/lib/admin-orders";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { checkoutEmail } from "../../../src/lib/checkout-contact";
@@ -10,7 +11,7 @@ import { DynamoDBClient, GetItemCommand, PutItemCommand, ScanCommand, QueryComma
 import { downloadEtsyImage } from "../../../src/lib/download-etsy-image";
 import { etsyUploadId, isEtsyImage } from "../../../src/lib/etsy-image-import";
 import { mediaUploadPrefix } from "../../../src/lib/media-paths";
-import { paypalSettingsSummary, updatePayPalSettings } from "../../../src/lib/paypal-settings";
+import { activePayPalCredentials, paypalSettingsSummary, updatePayPalSettings } from "../../../src/lib/paypal-settings";
 import { calculateCartTotals } from "../../../src/lib/cart-totals";
 import { defaultContent, type ShopContent } from "../../../src/lib/content";
 import type { Listing } from "../../../src/lib/catalog";
@@ -160,7 +161,15 @@ export async function handler(event: APIGatewayProxyEventV2) {
       return json({ orders, nextToken: result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url") : null });
     } catch { return json({ error: "Could not load your order history. Please try again." }, 503); }
   }
-  if (path === "/orders" && method === "POST") {
+  if (path === "/paypal/config" && method === "GET") {
+    try {
+      const environment = process.env.PAYPAL_MODE === "live" && event.headers["x-paypal-mode"] !== "sandbox" ? "live" : "sandbox";
+      const settings = await readPayPalSettings();
+      const configured = !!(settings[environment].clientId && settings[environment].secret);
+      return json({ configured, environment, clientId: configured ? settings[environment].clientId : "", currency: "USD" });
+    } catch { return json({ error: "PayPal settings could not be loaded." },503); }
+  }
+  if ((path === "/orders" || path === "/paypal/create" || path === "/paypal/capture") && method === "POST") {
     const token = event.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
     let customer = null;
     if (token) {
@@ -168,7 +177,10 @@ export async function handler(event: APIGatewayProxyEventV2) {
       catch { return json({ error: "Your sign-in session expired. Sign in again or continue as a guest." }, 401); }
     }
     try {
-      const receipt = await placeOrder(body(event, 128 * 1024), customer ? { sub: customer.sub, username: customer.username } : null, {
+      const input = body(event, 128 * 1024);
+      const paymentMode = path.startsWith("/paypal/") ? (process.env.PAYPAL_MODE === "live" && event.headers["x-paypal-mode"] !== "sandbox" ? "live" : "sandbox") : undefined;
+      const credentials = paymentMode ? activePayPalCredentials(await readPayPalSettings(),paymentMode) : undefined;
+      const receipt = await placeOrder(input, customer ? { sub: customer.sub, username: customer.username } : null, {
         getOrder: async id => await record(process.env.ORDER_TABLE, id) as OrderRecord | null,
         address: id => record(process.env.ADDRESS_TABLE, id),
         catalog: async ids => {
@@ -182,7 +194,35 @@ export async function handler(event: APIGatewayProxyEventV2) {
           try { await db.send(new PutItemCommand({ TableName: process.env.ORDER_TABLE, Item, ConditionExpression: "attribute_not_exists(id)" })); return true; }
           catch (error) { if (error instanceof Error && error.name === "ConditionalCheckFailedException") return false; throw error; }
         },
-      });
+      }, paymentMode);
+      if (paymentMode && credentials) {
+        const order = await record(process.env.ORDER_TABLE,receipt.id) as OrderRecord;
+        if (order.paymentMethod !== "paypal" || order.paypalMode !== paymentMode) throw new OrderError("Payment session does not match this checkout.",409);
+        if (order.status === "paid") return json({ paid: true, receipt });
+        const paypal = paypalClient(paymentMode,credentials);
+        const confirmPayment = async (payment: Parameters<typeof captureReceipt>[0]) => {
+          const captureId = captureReceipt(payment,order);
+          if (payment.id !== order.paypalOrderId) throw new OrderError("Payment session does not match this checkout.",409);
+          await db.send(new UpdateItemCommand({ TableName:process.env.ORDER_TABLE, Key:{id:{S:order.id}}, UpdateExpression:"SET #status = :paid, paypalCaptureId = :capture, updatedAt = :now", ConditionExpression:"paypalOrderId = :paypal AND (#status = :pending OR #status = :paid)", ExpressionAttributeNames:{"#status":"status"}, ExpressionAttributeValues:{":paid":{S:"paid"},":pending":{S:"pending"},":capture":{S:captureId},":paypal":{S:order.paypalOrderId!},":now":{S:new Date().toISOString()}} }));
+          return json({ paid:true, receipt:{...receipt,status:"paid"} });
+        };
+        if (path === "/paypal/create") {
+          if (order.paypalOrderId) {
+            const existing = await paypal.get(order.paypalOrderId);
+            if (existing.status === "COMPLETED") return await confirmPayment(existing);
+            return json({ orderID:order.paypalOrderId });
+          }
+          if (order.total <= 0) throw new OrderError("PayPal requires a positive order total.");
+          const created = await paypal.create(order);
+          if (typeof created.id !== "string" || !/^[A-Z0-9]{1,64}$/.test(created.id)) throw new Error("Invalid PayPal order response");
+          await db.send(new UpdateItemCommand({ TableName:process.env.ORDER_TABLE, Key:{id:{S:order.id}}, UpdateExpression:"SET paypalOrderId = :paypal", ConditionExpression:"attribute_exists(id) AND (attribute_not_exists(paypalOrderId) OR paypalOrderId = :paypal)", ExpressionAttributeValues:{":paypal":{S:created.id}} }));
+          return json({ orderID:created.id });
+        }
+        if (typeof input.orderID !== "string" || !/^[A-Z0-9]{1,64}$/.test(input.orderID) || order.paypalOrderId !== input.orderID) throw new OrderError("Payment session does not match this checkout.",409);
+        let payment = await paypal.get(input.orderID);
+        if (payment.status !== "COMPLETED") payment = await paypal.capture(input.orderID);
+        return await confirmPayment(payment);
+      }
       return json(receipt, 201);
     } catch (error) { return json({ error: error instanceof OrderError ? error.message : "Could not place your order. Please retry." }, error instanceof OrderError ? error.status : 503); }
   }
@@ -207,8 +247,10 @@ export async function handler(event: APIGatewayProxyEventV2) {
       try { update = orderUpdate(body(event)); } catch (error) { return json({ error: (error as Error).message }, 400); }
       const values: Record<string, AttributeValue> = { ":progress": { S: update.progress }, ":now": { S: new Date().toISOString() } };
       let expression = "SET fulfillmentProgress = :progress, updatedAt = :now";
+      if (update.shipmentTrackingNumber !== undefined) { expression += ", shipmentTrackingNumber = :tracking"; values[":tracking"] = { S: update.shipmentTrackingNumber }; }
+      if (update.trackingUrl !== undefined) { expression += ", trackingUrl = :url"; values[":url"] = { S: update.trackingUrl }; }
       if (update.shipBy) { expression += ", shipBy = :ship"; values[":ship"] = { S: update.shipBy }; }
-      if (update.progress === "completed") expression += ", completedAt = :now";
+      if (update.progress === "completed") expression += ", completedAt = if_not_exists(completedAt, :now)";
       const remove = [...(update.shipBy === null ? ["shipBy"] : []), ...(update.progress !== "completed" ? ["completedAt"] : [])];
       if (remove.length) expression += ` REMOVE ${remove.join(", ")}`;
       const result = await db.send(new UpdateItemCommand({ TableName: process.env.ORDER_TABLE, Key: { id: { S: path.split("/").pop()! } }, ConditionExpression: "attribute_exists(id)", UpdateExpression: expression, ExpressionAttributeValues: values, ReturnValues: "ALL_NEW" }));

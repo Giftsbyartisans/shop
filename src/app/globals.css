@@ -1453,3 +1453,19 @@ button:not([data-slot="checkbox"]){-webkit-appearance:none;appearance:none}
 .order-detail-page{padding-top:30px;padding-bottom:60px}.order-detail-topbar{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:32px}.order-detail-topbar>a{text-decoration:none}.order-detail-heading{padding-left:0;padding-right:0;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:22px}.order-detail-heading h1{font-size:28px;margin:8px 0}.order-detail-heading p{color:#737373;line-height:1.7}.order-detail-status{padding:8px 14px;border-radius:22px;background:#eaf2e1;color:#476827;font-size:13px;white-space:nowrap}.order-detail-sample{padding:16px 20px;background:#f7faf4;border:1px solid #dce8cf;border-radius:10px;margin-bottom:28px;line-height:1.7}.order-detail-panel{padding:24px;border:1px solid #e5e1dd;border-radius:12px;margin-bottom:24px}.order-detail-panel h2{font-size:21px;margin:0 0 20px}.order-detail-panel address{font-style:normal;line-height:1.9}.order-detail-item{display:flex;gap:18px;align-items:flex-start;padding:20px 0;border-bottom:1px solid #eee}.order-detail-item:last-child{border-bottom:0;padding-bottom:0}.order-detail-item>img{width:96px;height:108px;flex:0 0 96px;object-fit:cover;border-radius:8px}.order-detail-item>div{flex:1;min-width:0}.order-detail-item h3{font-size:16px;font-weight:500;line-height:1.6;margin:0 0 8px}.order-detail-item p{font-size:13px;line-height:1.7;color:#737373;margin:6px 0}.order-detail-item>span{font-size:14px;white-space:nowrap;color:#737373}.order-detail-panel .shopping-delivery-estimate{font-size:13px;color:#737373;margin-top:20px}.order-detail-summary{position:sticky;top:30px}
 @media(max-width:768px){.order-detail-heading{flex-direction:column;gap:8px}.order-detail-heading h1{font-size:24px}.order-detail-panel{padding:18px}.order-detail-item{gap:12px;flex-wrap:wrap}.order-detail-item>img{width:72px;height:80px;flex-basis:72px}.order-detail-item>span{margin-left:auto}.order-detail-summary{position:static}.order-detail-topbar .brand{font-size:16px}}
 .checkout-contact-email{display:block;margin-bottom:20px;font-size:14px}.checkout-contact-email input{display:block;width:100%;max-width:520px;margin-top:8px}.checkout-confirmation code,.order-tracking-number code{overflow-wrap:anywhere;font-size:13px}.order-finder-page{padding-top:40px;padding-bottom:70px}.order-finder-page>p{color:#737373;line-height:1.8;max-width:540px}.order-finder-form{max-width:540px;margin-top:28px;padding:26px;border:1px solid #e5e1dd;border-radius:12px}.order-finder-form fieldset{padding:0;border:0;display:grid;gap:22px}.order-finder-form label{display:grid;gap:8px}.order-finder-form input{width:100%;margin:0}.order-finder-form button{border-radius:24px}.order-finder-reset{padding-top:28px;padding-bottom:0}.order-tracking-number{color:#737373;font-size:13px;line-height:1.8}
+
+/* Consistent typography across admin navigation, editors, forms, and order cards. */
+:is(.manager-shell,.manager-login,.manager-editor-page),
+:is(.manager-shell,.manager-login,.manager-editor-page) * {
+  font-size:14px!important;
+  font-weight:400!important;
+}
+:is(.manager-shell,.manager-login,.manager-editor-page) :is(h1,h2,h3,h4,h5,h6),
+:is(.manager-shell,.manager-login,.manager-editor-page) :is(h1,h2,h3,h4,h5,h6) :is(a,span) {
+  font-size:16px!important;
+  font-weight:700!important;
+}
+:is(.manager-shell,.manager-login,.manager-editor-page) h1,
+:is(.manager-shell,.manager-login,.manager-editor-page) h1 :is(a,span) {
+  font-size:20px!important;
+}

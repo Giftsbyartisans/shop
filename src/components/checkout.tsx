@@ -13,7 +13,7 @@ import { formatAddressLabel, loadAddresses, saveAddress, type Address, type Addr
 import { cartLineKey } from "@/lib/shopping";
 import { useCart } from "./shopping-controls";
 import { useCartTotals } from "./use-cart-totals";
-import PlaceOrder from "./place-order";
+import PayPalCheckout from "./paypal-checkout";
 import ShopImage from "./shop-image";
 const fields = [
   ["recipient", "Full name", "name", true], ["line1", "Street address", "address-line1", true],
@@ -31,6 +31,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [paymentSample, setPaymentSample] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [email, setEmail] = useState("");
@@ -105,7 +106,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
     }
   }, [cart.signedIn, step]);
   const heading = <h1>Checkout</h1>;
-  if (orderNumber) return <main className="shop checkout-page">{heading}<section className="checkout-confirmation" role="status"><h2>Sample order created</h2><p>Order {orderNumber}</p><p>Your sample order has been saved. No payment was collected.</p><p>Tracking number: <code>{trackingNumber}</code></p><p>Keep this number to find your order with your email address.</p><Link href="/order-finder">Track order →</Link>{cart.signedIn && <Link href="/account?section=orders">View your orders →</Link>}<Link href="/collection">Continue shopping →</Link></section></main>;
+  if (orderNumber) return <main className="shop checkout-page">{heading}<section className="checkout-confirmation" role="status"><h2>{paymentSample ? "Test payment completed" : "Order confirmed"}</h2><p>Order {orderNumber}</p><p>{paymentSample ? "Your PayPal sandbox payment was completed. No real payment was collected." : "Your payment was received and your order has been saved."}</p><p>Tracking number: <code>{trackingNumber}</code></p><p>Keep this number to find your order with your email address.</p><Link href="/order-finder">Track order →</Link>{cart.signedIn && <Link href="/account?section=orders">View your orders →</Link>}<Link href="/collection">Continue shopping →</Link></section></main>;
   if (!ready || cart.loading) return <main className="shop checkout-page">{heading}<p role="status">Loading checkout…</p></main>;
   if (cart.error) return <main className="shop checkout-page">{heading}<p role="alert">{cart.error}</p><Link href="/cart">Return to cart</Link></main>;
   if (!content.buyNowEnabled) return <main className="shop checkout-page">{heading}<p>Online ordering is currently unavailable.</p><Link href="/cart">Return to cart</Link></main>;
@@ -134,7 +135,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
           <h2>Payment</h2>
           <p>Contact email: {email}</p>
           {selected ? <section className="checkout-deliver-to"><h3>Deliver to</h3><p>{selected.recipient}<br />{selected.line1}{selected.line2 ? `, ${selected.line2}` : ""}<br />{selected.city}, {selected.country} {selected.postalCode}</p><Link href="/checkout/address">Change address</Link></section> : <p>Select your shipping address before placing an order. <Link href="/checkout/address">Choose address →</Link></p>}
-          <section className="checkout-payment-placeholder"><h3>Payment options</h3><p>Payment gateways will appear here when available.</p><span>Sample checkout</span><p>For now, Place order creates a sample order without collecting payment.</p></section>
+          <section className="checkout-payment-placeholder"><h3>PayPal</h3><p>Pay securely with PayPal using the button in your order summary.</p></section>
         </>}
       </>}
     </section>
@@ -143,7 +144,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
       return <article className="checkout-summary-item" key={key}>{item && <ShopImage src={item.images?.[0] || item.image} alt={item.title} sizes="64px" />}<div><h3>{item?.title || "Unavailable product"}</h3><p>Quantity: {entry.quantity}</p>{entry.personalization && <p className="checkout-personalization">Personalization: {entry.personalization}</p>}<p>{line ? formatPrice(line.total) : "—"}</p></div></article>;
     })}</div>
       {totals ? <><p className="shopping-summary-row"><span>MSRP</span><span>{formatPrice(totals.subtotal)}</span></p><p className="shopping-summary-row"><span>Discount</span><span>{totals.discount > 0 ? "−" : ""}{formatPrice(totals.discount)}</span></p><p className="shopping-summary-row"><span>Shipping charges</span><span>{totals.shipping === 0 ? "Free" : formatPrice(totals.shipping)}</span></p><p className="shopping-summary-row shopping-summary-total"><span>Total</span><span>{formatPrice(totals.total)}</span></p></> : <p role={priceError ? "alert" : "status"}>{priceError || "Calculating totals…"}</p>}
-      {step === "address" ? <div className="checkout-next"><Link href="/cart">Back to cart</Link><button className="primary" type="button" disabled={loading || !selected || !validEmail || adding || saving || !totals} onClick={nextStep}>Next →</button></div> : <>{totals && selected && !loading && validEmail && <PlaceOrder key={JSON.stringify({ items: cart.items, addressId, total: totals.total })} items={cart.items} addressId={addressId} total={totals.total} email={email} guestAddress={cart.signedIn ? undefined : checkoutAddress(selected)} enabled={content.buyNowEnabled} onPlaced={(number, tracking) => { setOrderNumber(number); setTrackingNumber(tracking); }} />}<Link href="/checkout/address">← Back to shipping address</Link></>}
+      {step === "address" ? <div className="checkout-next"><Link href="/cart">Back to cart</Link><button className="primary" type="button" disabled={loading || !selected || !validEmail || adding || saving || !totals} onClick={nextStep}>Next →</button></div> : <>{totals && selected && !loading && validEmail && <PayPalCheckout key={JSON.stringify({ items: cart.items, addressId, total: totals.total, email, selected })} items={cart.items} addressId={addressId} total={totals.total} email={email} guestAddress={cart.signedIn ? undefined : checkoutAddress(selected)} enabled={content.buyNowEnabled} onPlaced={(number, tracking, isSample) => { setPaymentSample(isSample); setOrderNumber(number); setTrackingNumber(tracking); }} />}<Link href="/checkout/address">← Back to shipping address</Link></>}
     </aside>
   </div></main>;
 }

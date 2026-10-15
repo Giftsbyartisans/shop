@@ -126,3 +126,35 @@ removes the completion timestamp. Ship-by dates are explicitly set by admins;
 missing dates appear under No estimate. Filters use the administrator's local date.
 Deploy the new API routes and CustomerOrder fulfillmentProgress, shipBy and
 completedAt fields together with the admin interface.
+
+## PayPal checkout
+
+The payment step now renders PayPal's JavaScript SDK button instead of the sample
+Place order action. Enter sandbox/live REST Client IDs and Secrets under Admin →
+Settings → PayPal. Credentials remain encrypted in PaymentSettings and are decrypted
+only in Lambda. `GET /paypal/config` returns the active public Client ID, mode and
+currency; it never returns secrets. Production main uses live mode and local
+frontend requests use sandbox mode through the existing mode header.
+
+`POST /paypal/create` validates the checkout contact/address and authoritative
+catalog prices using the same order service, then persists an unpaid snapshot
+before creating a PayPal Orders v2 CAPTURE order. PayPal retry namespaces separate
+sample, sandbox and live orders. The PayPal order ID is bound to that snapshot;
+create/capture requests use stable PayPal-Request-Id values. Cart totals and IDs
+supplied by a browser cannot mark an order paid. Both create and capture require
+the original checkout request UUID, matching payload and optional verified customer
+identity, so guest retries also require their original request data.
+
+`POST /paypal/capture` verifies the bound PayPal order, captures through the server,
+and verifies COMPLETED capture status, order identity, amount and USD currency
+before conditionally marking the stored order paid. Repeated requests return the
+existing paid receipt. Retrying create also recovers a completed PayPal capture
+whose database update was interrupted. Live orders have isSample=false; sandbox
+orders stay clearly marked as tests. Cancelled/failed attempts remain unpaid.
+No automatic background/webhook reconciliation is configured; interrupted payment
+confirmation is recovered when that checkout is retried. Retain pending orders
+for payment support rather than deleting them blindly.
+
+Deploy the new PayPal fields and routes with the frontend. Confirm a full sandbox
+buyer checkout, cancellation and retry before using live credentials. No real
+charge is performed by local automated tests.
