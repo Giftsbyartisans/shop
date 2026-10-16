@@ -32,7 +32,7 @@ export function ShoppingLinks() {
     return <Link key={kind} href={`/${kind}`} aria-label={`${kind === "cart" ? "Cart" : "Favorites"}, ${count} items`} title={kind === "cart" ? "Cart" : "Favorites"}><ShoppingIcon kind={kind} />{count > 0 && <span className="shopping-count">{count}</span>}</Link>;
   })}</div>;
 }
-export function ProductShopping({ id, compact = false, mode = "both", item, showFavoriteNotice = true }: { id: string; compact?: boolean; mode?: "both" | "favorite" | "cart"; item?: Listing; showFavoriteNotice?: boolean }) {
+export function ProductShopping({ id, compact = false, mode = "both", item, showFavoriteNotice = true, cartLabel = "Add to cart" }: { id: string; compact?: boolean; mode?: "both" | "favorite" | "cart"; item?: Listing; showFavoriteNotice?: boolean; cartLabel?: string }) {
   const state = useShopping();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -67,7 +67,7 @@ export function ProductShopping({ id, compact = false, mode = "both", item, show
         <button type="button" aria-label="Increase quantity" disabled={busy || quantity >= 99} onClick={() => setQuantity(current => current + 1)}>+</button>
       </div>
     </div>}
-    {mode !== "favorite" && <button disabled={busy || cart.loading} onClick={() => act("cart")} className={compact ? "" : "primary"}>Add to cart</button>}
+    {mode !== "favorite" && <button disabled={busy || cart.loading} onClick={() => act("cart")} className={compact ? "" : "primary"}>{cartLabel}</button>}
     {mode !== "cart" && <button disabled={busy || favorites.loading} onClick={() => act("favorite")} aria-pressed={favorite} aria-label={`${favorite ? "Remove from" : "Save to"} favorites`} title={favorite ? "Remove from favorites" : "Save to favorites"}><ShoppingIcon kind="favorites" />{!compact && (favorite ? "Saved" : "Favorite")}</button>}
     {(error || notice) && <span role="status" className="shopping-notice">{error || notice}</span>}
   </div>;

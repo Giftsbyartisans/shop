@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { fetchAuthSession } from "aws-amplify/auth";
+import { fetchTokenSession } from "@/lib/auth-session";
 import { backendApiUrl } from "@/lib/backend-api";
 import { cartLineKey, type CartItem } from "@/lib/shopping";
 import { updateShopping } from "./shopping-controls";
@@ -14,7 +14,7 @@ export default function PlaceOrder({ items, total, addressId, enabled, email, gu
     if (!enabled || lock.current || placed) return;
     lock.current = true; setBusy(true); setError("");
     try {
-      const session = await fetchAuthSession();
+      const session = await fetchTokenSession();
       const token = session.tokens?.accessToken.toString();
       const signature = JSON.stringify({ customer: session.tokens?.accessToken.payload.sub, items, addressId, total, email, guestAddress });
       const intentKey = "shop-pending-order";

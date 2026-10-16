@@ -1,5 +1,6 @@
 export type Listing = {
   id: string;
+  publicId?: string;
   title: string;
   description: string;
   image: string;

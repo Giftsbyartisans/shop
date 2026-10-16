@@ -1,13 +1,14 @@
 import { categoryRenames } from "./category-renames";
 import { defaultContent, validateContent, type ShopContent } from "./content";
-import { Amplify } from "aws-amplify";
+import "./customer-auth";
 import { generateClient } from "aws-amplify/data";
-import { fetchAuthSession } from "aws-amplify/auth";
+import { backendApiUrl } from "./backend-api";
+import { catalogWithNumbers, parsePublicCatalog } from "./public-catalog";
+import { fetchTokenSession } from "@/lib/auth-session";
 import { list, remove, uploadData } from "aws-amplify/storage";
 import { PUBLIC_CATALOG_PATH } from "./public-catalog";
 import { PUBLIC_SETTINGS_PATH, parsePublicShopContent } from "./public-shop-content";
 import { cleanupListingMedia, mediaReferences } from "./listing-media-cleanup";
-import outputs from "../../amplify_outputs.json";
 import type { Schema } from "../../amplify/data/resource";
 import {
   validateListingLinks,
@@ -15,7 +16,6 @@ import {
   type Listing,
 } from "./catalog";
 
-Amplify.configure(outputs);
 const client = generateClient<Schema>();
 const adminAuth = { authMode: "userPool" as const };
 function check(result: { errors?: readonly { message: string }[] }) {
@@ -23,13 +23,13 @@ function check(result: { errors?: readonly { message: string }[] }) {
     throw new Error(result.errors.map((e) => e.message).join("; "));
 }
 export async function isAdmin() {
-  const session = await fetchAuthSession();
+  const session = await fetchTokenSession();
   const groups = session.tokens?.accessToken.payload["cognito:groups"];
   return Array.isArray(groups) && groups.includes("Admins");
 }
 export async function listListings(admin = false): Promise<Listing[]> {
   const authMode: "userPool" | "identityPool" =
-    admin || (await fetchAuthSession()).tokens ? "userPool" : "identityPool";
+    admin || (await fetchTokenSession()).tokens ? "userPool" : "identityPool";
   const items: Listing[] = [];
   let nextToken: string | null | undefined;
   do {
@@ -66,6 +66,16 @@ export async function listListings(admin = false): Promise<Listing[]> {
     );
     nextToken = result.nextToken;
   } while (nextToken);
+  const published = items.filter(item => item.published);
+  if (published.length) {
+    const numbered = await catalogWithNumbers(published, async () => {
+      const response = await fetch(backendApiUrl('/storefront'), { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+      if (!response.ok) throw new Error('Public listing numbers are temporarily unavailable.');
+      return parsePublicCatalog((await response.json()).listings);
+    });
+    const numbers = new Map(numbered.map(item => [item.id, item.publicId]));
+    for (const item of items) item.publicId = numbers.get(item.id);
+  }
   return items;
 }
 async function publishPublicCatalog() {
@@ -227,14 +237,14 @@ export async function submitInquiry(input: {
   business?: string;
   quantity?: number;
 }) {
-  const authMode = (await fetchAuthSession()).tokens
+  const authMode = (await fetchTokenSession()).tokens
     ? "userPool"
     : "identityPool";
   check(await client.models.Inquiry.create(input, { authMode }));
 }
 
 export async function loadShopContent() {
-  const authMode = (await fetchAuthSession()).tokens
+  const authMode = (await fetchTokenSession()).tokens
     ? "userPool"
     : "identityPool";
   const result = await client.models.ShopSettings.get(

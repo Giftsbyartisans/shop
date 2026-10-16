@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { pageMetadata } from "@/lib/page-metadata";
 import ShopSkeleton from "@/components/shop-skeleton";
 import { Suspense } from 'react';
 import { preconnect } from 'react-dom';
@@ -19,5 +21,16 @@ async function CategoryCollection({ params }: { params: Promise<{ category: stri
     try { categoryName = decodeURIComponent(category); }
     catch { /* Keep malformed escapes as text rather than failing the page. */ }
   }
+  if (!initialListings.some(listing => listing.category === categoryName)) notFound();
   return <Storefront key={categoryName} page="collection" categoryOnly={categoryName} initialContent={initialContent} initialListings={initialListings} />;
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ category: string }> }) {
+  const [{ category }, listings] = await Promise.all([params, loadPublicCatalog()]);
+  let name = category;
+  if (!listings.some(item => item.category === name)) {
+    try { name = decodeURIComponent(category); } catch { /* Invalid categories return 404. */ }
+  }
+  if (!listings.some(item => item.category === name)) notFound();
+  return pageMetadata(`/collection/${encodeURIComponent(name)}`, name, `Explore ${name.toLowerCase()} from GiftsByArtisans. Discover handcrafted pieces and thoughtful gifts in our collection.`);
 }

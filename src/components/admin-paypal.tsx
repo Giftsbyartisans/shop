@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { backendApiUrl } from "@/lib/backend-api";
-import { fetchAuthSession } from "aws-amplify/auth";
+import { fetchTokenSession } from "@/lib/auth-session";
 import { paypalEnvironments, type PayPalSettingsSummary } from "@/lib/paypal-settings";
 
 async function requestSettings(body?: unknown): Promise<PayPalSettingsSummary> {
-  const session = await fetchAuthSession();
+  const session = await fetchTokenSession();
   const token = session.tokens?.accessToken.toString();
   if (!token) throw new Error("Admin sign-in required.");
   const response = await fetch(backendApiUrl("/admin/paypal"), { method: body ? "PUT" : "GET", cache: "no-store",

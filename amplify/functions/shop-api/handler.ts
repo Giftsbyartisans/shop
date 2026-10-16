@@ -1,3 +1,4 @@
+import { listingNumber } from "./listing-numbers";
 import { paypalClient, captureReceipt } from "./paypal-checkout";
 import { orderUpdate } from "../../../src/lib/admin-orders";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
@@ -42,6 +43,31 @@ function body(event: APIGatewayProxyEventV2, max = 8192) {
 }
 export async function handler(event: APIGatewayProxyEventV2) {
   const path = event.rawPath, method = event.requestContext.http.method;
+  if (path === "/storefront" && method === "GET") {
+    try {
+      const listings: Record<string, unknown>[] = [];
+      let cursor: Record<string, AttributeValue> | undefined;
+      do {
+        const result = await db.send(new ScanCommand({ TableName: process.env.LISTING_TABLE, ExclusiveStartKey: cursor }));
+        for (const row of result.Items ?? []) {
+          const item = Object.fromEntries(Object.entries(row).map(([key, value]) => [key, decode(value)]));
+          const fields = ["id", "title", "description", "image", "price", "category", "createdAt", "etsyUrl", "pinterestUrl", "salePrice", "personalizationEnabled", "personalizationMode", "personalizationTemplateId", "personalizationHeading", "personalizationText", "personalizationPrice", "images", "videos"];
+          listings.push({ ...Object.fromEntries(fields.filter(key => item[key] != null).map(key => [key, item[key]])), published: true });
+        }
+        cursor = result.LastEvaluatedKey;
+      } while (cursor);
+      for (let offset = 0; offset < listings.length; offset += 20) {
+        await Promise.all(listings.slice(offset, offset + 20).map(async item => {
+          item.publicId = await listingNumber(String(item.id), db, process.env.LISTING_NUMBERS_TABLE);
+        }));
+      }
+      const settings = await record(process.env.SHOP_SETTINGS_TABLE, "website");
+      const content = typeof settings?.content === "string" ? JSON.parse(settings.content) : settings?.content;
+      return { ...json({ listings, content: content ?? defaultContent }), headers: { "content-type": "application/json", "cache-control": "public, max-age=30" } };
+    } catch {
+      return json({ error: "Storefront data is temporarily unavailable." }, 503);
+    }
+  }
   if (path === "/favicon" && method === "GET") {
     try {
       const settings = await record(process.env.SHOP_SETTINGS_TABLE, "website");

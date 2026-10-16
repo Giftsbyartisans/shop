@@ -43,6 +43,11 @@ const media = new Distribution(stack, 'StorefrontMedia', {
 backend.addOutput({ custom: { mediaCdnUrl: `https://${media.distributionDomainName}` } });
 
 const apiLambda = backend.shopApi.resources.lambda;
+const listingNumbers = new Table(backend.createStack('listing-numbers'), 'ListingNumbers', {
+  partitionKey: { name: 'id', type: AttributeType.STRING }, billingMode: BillingMode.PAY_PER_REQUEST,
+});
+listingNumbers.grantReadWriteData(apiLambda);
+backend.shopApi.addEnvironment('LISTING_NUMBERS_TABLE', listingNumbers.tableName);
 const verificationTable = new Table(backend.createStack('order-verification'), 'OrderVerification', {
   partitionKey: { name: 'id', type: AttributeType.STRING }, billingMode: BillingMode.PAY_PER_REQUEST,
   timeToLiveAttribute: 'expiresAt',
@@ -95,6 +100,7 @@ httpApi.addRoutes({ path: '/paypal/capture', methods: [HttpMethod.POST], integra
 httpApi.addRoutes({ path: '/admin/paypal', methods: [HttpMethod.GET, HttpMethod.PUT], integration });
 httpApi.addRoutes({ path: '/import-image', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/favicon', methods: [HttpMethod.GET], integration });
+httpApi.addRoutes({ path: '/storefront', methods: [HttpMethod.GET], integration });
 httpApi.addRoutes({ path: '/order-finder/code', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/order-finder/verify', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/order-finder', methods: [HttpMethod.POST], integration });

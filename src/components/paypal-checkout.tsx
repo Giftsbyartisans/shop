@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { fetchTokenSession } from "@/lib/auth-session";
 import { beginOrderConfirmation } from '@/lib/checkout-navigation';
 import { backendApiUrl } from '@/lib/backend-api';
 import { cartLineKey, type CartItem } from '@/lib/shopping';
@@ -31,12 +31,12 @@ export default function PayPalCheckout({items,total,addressId,email,guestAddress
   const pending = useRef<Record<string,unknown> | null>(null), finished = useRef(false);
   const frontendMode = process.env.NODE_ENV === 'production' ? 'live' : 'sandbox';
   async function api(path:string,body?:unknown) {
-    const session = await fetchAuthSession(); const token = session.tokens?.accessToken.toString();
+    const session = await fetchTokenSession(); const token = session.tokens?.accessToken.toString();
     const response = await fetch(backendApiUrl(path),{method:body ? 'POST':'GET',headers:{'Content-Type':'application/json','X-PayPal-Mode':frontendMode,...(token ? {Authorization:`Bearer ${token}`} : {})},...(body ? {body:JSON.stringify(body)} : {}),signal:AbortSignal.timeout(45000)});
     const result = await response.json(); if (!response.ok) throw new Error(result.error || 'PayPal request failed. Please retry.'); return result;
   }
   async function checkoutInput() {
-    const session = await fetchAuthSession(); const current = latest.current;
+    const session = await fetchTokenSession(); const current = latest.current;
     const signature = JSON.stringify({cartId:current.cartId,customer:session.tokens?.accessToken.payload.sub,items:current.items,total:current.total,addressId:current.addressId,email:current.email,guestAddress:current.guestAddress,mode:frontendMode});
     let requestId = crypto.randomUUID();
     try { const stored = JSON.parse(sessionStorage.getItem('shop-paypal-intent') || 'null'); if (stored?.signature === signature && typeof stored.requestId === 'string') requestId = stored.requestId; sessionStorage.setItem('shop-paypal-intent',JSON.stringify({signature,requestId})); } catch { if (pending.current?.signature === signature) requestId = pending.current.requestId as `${string}-${string}-${string}-${string}-${string}`; }

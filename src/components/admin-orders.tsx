@@ -1,7 +1,8 @@
 "use client";
+import { listingPath } from "@/lib/listing-url";
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { fetchTokenSession } from "@/lib/auth-session";
 import { backendApiUrl } from '@/lib/backend-api';
 import type { CustomerOrder } from '@/lib/customer-records';
 import { orderSummaryAddress, orderSummaryItems } from '@/lib/order-summary';
@@ -10,7 +11,7 @@ import ShopImage from './shop-image';
 import styles from './admin-orders.module.css';
 type Order = CustomerOrder & { shipmentTrackingNumber?: string | null; isGuest?: boolean; fulfillmentProgress?: OrderProgress | null; completedAt?: string | null };
 async function api(path: string, update?: unknown) {
-  const session = await fetchAuthSession(); const token = session.tokens?.accessToken.toString();
+  const session = await fetchTokenSession(); const token = session.tokens?.accessToken.toString();
   if (!token) throw new Error('Admin sign-in required.');
   const response = await fetch(backendApiUrl(path), { method: update ? 'PUT' : 'GET', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(update ? { body: JSON.stringify(update) } : {}) });
   const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Orders could not be loaded.'); return result;
@@ -49,7 +50,7 @@ export default function AdminOrders() {
           return <article className={styles.order} key={order.id}>
             <input className={styles.checkbox} type="checkbox" aria-label={`Select order ${order.orderNumber}`} checked={selected.includes(order.id)} disabled={busy} onChange={() => select([order.id])} />
             <div><h3>{address?.recipient || 'Customer'} {order.isGuest && <small>(Guest)</small>}</h3><p className={styles.orderNumber}>{order.orderNumber} <span>{money(order.total)}</span></p><p>{order.isSample ? 'Sample order · ' : ''}{order.status === 'pending' ? 'Pending · unpaid' : order.status}</p>
-              {items.map((item,index) => <div className={styles.item} key={`${item.id}-${index}`}>{item.image && <Link className={styles.productImage} href={`/listing/${encodeURIComponent(item.id)}`} target="_blank" rel="noopener noreferrer"><ShopImage src={item.image} alt={item.title} sizes="100px" /></Link>}<div><p><Link className={styles.productTitle} href={`/listing/${encodeURIComponent(item.id)}`} target="_blank" rel="noopener noreferrer">{item.title}</Link></p><p>Quantity <strong>{item.quantity}</strong></p>{item.personalization && <p>Personalization: {item.personalization}</p>}</div></div>)}
+              {items.map((item,index) => <div className={styles.item} key={`${item.id}-${index}`}>{item.image && <Link className={styles.productImage} href={listingPath(item)} target="_blank" rel="noopener noreferrer"><ShopImage src={item.image} alt={item.title} sizes="100px" /></Link>}<div><p><Link className={styles.productTitle} href={listingPath(item)} target="_blank" rel="noopener noreferrer">{item.title}</Link></p><p>Quantity <strong>{item.quantity}</strong></p>{item.personalization && <p>Personalization: {item.personalization}</p>}</div></div>)}
               {!items.length && <p>Item details were not recorded.</p>}
 
             </div>

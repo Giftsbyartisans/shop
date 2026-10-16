@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { fetchAuthSession } from "aws-amplify/auth";
+import { fetchTokenSession } from "@/lib/auth-session";
 import { loadOrder, type CustomerOrder } from "@/lib/customer-records";
 import { orderSummaryItems, orderSummaryAddress } from "@/lib/order-summary";
 import { deliveryEstimate } from "@/lib/delivery-estimate";
@@ -17,7 +17,7 @@ export default function OrderDetail({ id, initialOrder, guest = false, confirmat
     let active = true; setLoading(true); setError("");
     void (async () => {
       try {
-        const session = await fetchAuthSession();
+        const session = await fetchTokenSession();
         if (!session.tokens) { if (active) setSignedIn(false); return; }
         const result = await loadOrder(id);
         if (active) { setOrder(result); setSignedIn(true); }
@@ -44,6 +44,6 @@ export default function OrderDetail({ id, initialOrder, guest = false, confirmat
         {item.image && <ShopImage src={item.image} alt={item.title} sizes="96px" />}<div><h3>{item.title}</h3><p>Quantity: {item.quantity}</p>{item.unitPrice !== undefined && <p>Price per item: {money(item.unitPrice)}</p>}{item.personalization && <p className="checkout-personalization">Personalization: {item.personalization}{item.personalizationPrice !== undefined && <><br />Personalization per item: {money(item.personalizationPrice)}</>}</p>}</div><span>{money(item.total)}</span>
       </article>) : <p>Item details were not recorded for this order.</p>}</section>
       <section className="order-detail-panel"><h2>Shipping address</h2>{order.email && <p>Email: {order.email}</p>}{address ? <address>{address.recipient}<br />{address.line1}{address.line2 && <><br />{address.line2}</>}<br />{address.city}{address.region ? `, ${address.region}` : ""} {address.postalCode}<br />{address.country}{address.phone && <><br />{address.phone}</>}</address> : <p>Shipping details were not recorded for this order.</p>}{validDate && <p className="shopping-delivery-estimate">Estimated delivery: {deliveryEstimate(date)}</p>}{order.trackingUrl?.startsWith("https://") && <Link href={order.trackingUrl} target="_blank" rel="noopener noreferrer">Track shipment ↗</Link>}</section>
-    </section><aside className="shopping-summary order-detail-summary"><h2>Order summary</h2><p className="shopping-summary-row"><span>MSRP</span><span>{money(order.subtotal)}</span></p><p className="shopping-summary-row"><span>Discount</span><span>{order.discount ? "−" : ""}{money(order.discount)}</span></p><p className="shopping-summary-row"><span>Shipping charges</span><span>{order.shipping === 0 ? "Free" : money(order.shipping)}</span></p><p className="shopping-summary-row shopping-summary-total"><span>Total</span><span>{money(order.total)}</span></p><p className="muted">Currency: {currency}</p>{order.trackingNumber && <p className="order-tracking-number">Tracking number<br /><code>{order.trackingNumber}</code></p>}{confirmation ? <Link className="order-confirmation-home" href="/">Back to home</Link> : guest && <a href="/order-finder">Track another order</a>}</aside></div>
+    </section><aside className="shopping-summary order-detail-summary"><h2>Order summary</h2><p className="shopping-summary-row"><span>MSRP</span><span>{money(order.subtotal)}</span></p><p className="shopping-summary-row"><span>Discount</span><span>{order.discount ? "−" : ""}{money(order.discount)}</span></p><p className="shopping-summary-row"><span>Shipping charges</span><span>{order.shipping === 0 ? "Free" : money(order.shipping)}</span></p><p className="shopping-summary-row shopping-summary-total"><span>Total</span><span>{money(order.total)}</span></p>{(guest || confirmation) && order.trackingNumber && <p className="order-tracking-number">Tracking number<br /><code>{order.trackingNumber}</code></p>}{confirmation ? <Link className="order-confirmation-home" href="/">Back to home</Link> : guest && <a href="/order-finder">Track another order</a>}</aside></div>
   </main>;
 }

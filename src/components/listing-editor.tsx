@@ -1,4 +1,5 @@
 "use client";
+import { listingPath } from "@/lib/listing-url";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { uploadData } from "aws-amplify/storage";
@@ -518,7 +519,7 @@ export default function ListingEditor({
         <div className="listing-edit-submit">
           <p role="status">{hasChanges ? "You have unsaved changes." : "You have no unsaved changes."}</p>
           {item.published && (
-            <Link className="listing-view-live" href={`/listing/${encodeURIComponent(item.id)}`} target="_blank" rel="noopener noreferrer">
+            <Link className="listing-view-live" href={listingPath(item)} target="_blank" rel="noopener noreferrer">
               View listing
             </Link>
           )}

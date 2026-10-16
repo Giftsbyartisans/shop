@@ -1,4 +1,5 @@
 "use client";
+import { listingPath } from "@/lib/listing-url";
 import { backendFaviconUrl } from "@/lib/backend-api";
 import Link from "next/link";
 import ShopSkeleton from "./shop-skeleton";
@@ -43,7 +44,7 @@ function Card({ item, content, showcase = false, eager = false }: { item: Listin
   const photo = selected && photos.includes(selected) ? selected : photos[0];
   return (
     <article className={`listing-card${showcase ? " homepage-listing" : ""}`}>
-      <Link className="listing-media demo-media" href={"/listing/" + item.id}>
+      <Link className="listing-media demo-media" href={listingPath(item)}>
         <ShopImage src={photo} alt={item.title} loading={eager ? "eager" : "lazy"}
           sizes={showcase ? "(max-width: 600px) 75vw, (max-width: 850px) 46vw, (max-width: 1100px) 30vw, 19vw" : "(max-width: 900px) 44vw, (max-width: 1440px) 22vw, 320px"} />
         {Boolean(item.videos?.length) && <span className="product-card-video-tag">
@@ -60,7 +61,7 @@ function Card({ item, content, showcase = false, eager = false }: { item: Listin
           ))}
         </div>
       )}
-      <h3 className="listing-name"><Link href={"/listing/" + item.id}>{item.title}</Link></h3>
+      <h3 className="listing-name"><Link href={listingPath(item)}>{item.title}</Link></h3>
       <div className="card-price-row">
         <div><ListingPrices item={item} content={content} /></div>
       </div>
@@ -169,7 +170,7 @@ export default function Storefront({
     [error, setError] = useState("");
   useEffect(() => {
     let active = true;
-    void loadShopContent()
+    if (!initialContent) void loadShopContent()
       .then((settings) => {
         if (active) {
           setContent(settings);
@@ -182,7 +183,7 @@ export default function Storefront({
           if (!initialContent) setSettingsStatus("failed");
         }
       });
-    void listListings()
+    if (!initialListings) void listListings()
       .then((list) => {
         if (active) setItems(list);
       })
@@ -200,7 +201,7 @@ export default function Storefront({
     return () => {
       active = false;
     };
-  }, [initialContent]);
+  }, [initialContent, initialListings]);
   useEffect(() => {
     const icons = document.head.querySelectorAll<HTMLLinkElement>('link[rel="icon"]');
     const url = content.favicon.startsWith("s3:media/")

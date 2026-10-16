@@ -28,9 +28,9 @@
 .identity h2{font-size:21px;margin:0 0 6px;overflow-wrap:anywhere}
 .accountEmail{font-size:12px;color:#666;overflow-wrap:anywhere;width:100%;line-height:1.6;margin:0}
 .accountNav{display:flex;gap:0;width:100%;max-width:760px;grid-column:1/-1;overflow-x:auto}
-.accountNav button{flex:1 0 0;min-width:130px;justify-content:center;text-align:center;border:0;border-bottom:3px solid transparent;padding:10px 8px;border-radius:0;background:transparent;color:#666;font-size:13px}
-.accountNav button[aria-current=page]{border-bottom-color:#b44516;color:#222;font-weight:600}
-.accountNav button:hover:not(:disabled){background:transparent;color:#b44516}
+.accountPage .accountNav button{flex:1 0 0;min-width:130px;justify-content:center;text-align:center;border:0;border-bottom:3px solid transparent;padding:10px 8px;border-radius:0;background:transparent;color:#666;font-size:13px}
+.accountPage .accountNav button[aria-current=page]{border-bottom-color:#b44516;color:#222;font-weight:600}
+.accountPage .accountNav button:hover:not(:disabled){background:transparent;color:#b44516}
 .accountBar .signout{border:1px solid #c9c2b8;padding:10px 16px;color:#444;background:#fff;border-radius:8px}
 .accountContent{padding:44px;min-width:0}
 .accountContent h1{font-size:34px;letter-spacing:-1px;overflow-wrap:anywhere}
@@ -68,7 +68,7 @@
 .emptyState h2{font-size:22px}.emptyState p{color:#666;line-height:1.7}.emptyState a,.recordCard>a{text-decoration:underline;text-underline-offset:3px}
 .orderHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.orderHeading h3{margin:0}
 .orderStatus{font-size:12px;background:#f5f3ef;padding:6px 10px;border-radius:20px;text-transform:capitalize}
-@media(max-width:700px){.accountBar{padding:24px 22px 0;gap:20px 12px}.accountNav{gap:20px}.accountNav button{font-size:12px;padding:12px 0}.accountContent{padding:28px 22px}.summary,.quickLinks,.accountContent .form{grid-template-columns:1fr}.accountContent h1{font-size:29px}.identity{gap:10px}.identity h2{font-size:18px}.avatar{width:42px;height:42px}.accountBar .signout{padding:8px 10px;font-size:12px}}
+@media(max-width:700px){.accountBar{padding:24px 22px 0;gap:20px 12px}.accountNav{gap:20px}.accountPage .accountNav button{font-size:12px;padding:12px 0}.accountContent{padding:28px 22px}.summary,.quickLinks,.accountContent .form{grid-template-columns:1fr}.accountContent h1{font-size:29px}.identity{gap:10px}.identity h2{font-size:18px}.avatar{width:42px;height:42px}.accountBar .signout{padding:8px 10px;font-size:12px}}
 .accountPage{width:100%;min-height:100dvh;padding:0;margin:0;background:#fff}
 .accountPage .panel{margin:0;border:0;border-radius:0;overflow:visible}
 .accountHeader{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:24px 6%;background:#fff;border-bottom:1px solid #e5e1dd}
@@ -89,3 +89,8 @@
 .orderHeading a:hover,.orderSummaryLabel:hover,.recordCard>.orderTrackingLink:hover{text-decoration:underline}
 
 .orderSummaryLabel{position:relative;z-index:1}
+
+.orderStatus.orderPaid{background:#eaf2e1;color:#476827}
+
+.recordCard:has(.orderSummaryLink){transition:border-color .18s ease}
+.recordCard:has(.orderSummaryLink):hover,.recordCard:has(.orderSummaryLink):focus-within{border-color:var(--primary)}

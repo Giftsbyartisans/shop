@@ -1,3 +1,4 @@
+import { pageMetadata } from "@/lib/page-metadata";
 import ShopSkeleton from "@/components/shop-skeleton";
 import { Suspense } from 'react';
 import { preconnect, preload } from 'react-dom';
@@ -15,4 +16,8 @@ async function HomeContent() {
 }
 export default function Home() {
   return <Suspense fallback={<ShopSkeleton variant="home" />}><HomeContent /></Suspense>;
+}
+
+export async function generateMetadata() {
+  return pageMetadata('/', 'Handcrafted gifts and personalized keepsakes', 'Discover handcrafted gifts, personalized keepsakes, and thoughtful pieces made by artisans.');
 }

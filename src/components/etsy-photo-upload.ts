@@ -1,6 +1,6 @@
 "use client";
 import { backendApiUrl } from "@/lib/backend-api";
-import { fetchAuthSession } from "aws-amplify/auth";
+import { fetchTokenSession } from "@/lib/auth-session";
 import { getProperties } from "aws-amplify/storage";
 import type { Listing } from "@/lib/catalog";
 import { etsyUploadId } from "@/lib/etsy-image-import";
@@ -8,7 +8,7 @@ import { mediaUploadPrefix } from "@/lib/media-paths";
 import { uploadImage } from "./shop-image";
 
 export async function createEtsyPhotoCopier() {
-  const session = await fetchAuthSession();
+  const session = await fetchTokenSession();
   const token = session.tokens?.accessToken.toString();
   if (!token) throw new Error("Sign in before importing photos.");
   return async (source: string, listing: Listing): Promise<string> => {

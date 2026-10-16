@@ -8,6 +8,6 @@ test("sitemap includes published products and encoded categories, omitting draft
   const urls = buildSitemap("https://example.com/", [item, item, { ...item, id: "draft", published: false, category: "Hidden" }]).map(entry => entry.url);
   assert.equal(urls.length, 7);
   assert.ok(urls.includes("https://example.com/collection/Copper%20Bottle"));
-  assert.ok(urls.includes("https://example.com/listing/copper-1"));
+  assert.ok(urls.includes("https://example.com/listing/bottle-copper-1"));
   assert.ok(urls.every(url => !url.includes("draft") && !url.includes("Hidden") && !url.includes("admin")));
 });

@@ -1,14 +1,12 @@
 "use client";
 import "./customer-auth";
 import { nextCartId, validCartId } from "./cart-identity";
-import { generateClient } from "aws-amplify/data";
-import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+import { accountCart } from "./account-shopping-api";
+import { getCurrentUser } from "aws-amplify/auth";
+import { fetchTokenSession } from "@/lib/auth-session";
 import { Hub } from "aws-amplify/utils";
-import type { Schema } from "../../amplify/data/resource";
 import { cartLineKey, EMPTY_SHOPPING, mergeCarts, parseShopping, SHOPPING_KEY, type Shopping } from "./shopping";
 
-const client = generateClient<Schema>();
-const auth = { authMode: "userPool" as const };
 type State = { cartId: string | null; items: Shopping["cart"]; signedIn: boolean; loading: boolean; error: string };
 const initial: State = { cartId: null, items: [], signedIn: false, loading: true, error: "" };
 let state = initial;
@@ -26,25 +24,25 @@ function guestState() {
   if (!validCartId(saved.cartId)) { saved.cartId = crypto.randomUUID(); try { localStorage.setItem(SHOPPING_KEY,JSON.stringify(saved)); } catch { /* In-memory identity remains available. */ } }
   return saved;
 }
-function model() { if (!client.models.CustomerCart) throw new Error("Account carts need a backend update before they can be saved."); return client.models.CustomerCart; }
+function model() { return accountCart; }
 function check(result: { errors?: readonly { message: string }[] }) { if (result.errors?.length) throw new Error("Could not sync your cart. Please try again."); }
 function decode(items: unknown) { return parseShopping(JSON.stringify({ cart: typeof items === "string" ? JSON.parse(items) : items })).cart; }
 async function persist(id: string, items: Shopping["cart"], hasRecord: boolean, cartId: string) {
-  const result = hasRecord ? await model().update({ id, cartId, items: JSON.stringify(items) }, auth) : await model().create({ id, cartId, items: JSON.stringify(items) }, auth);
+  const result = hasRecord ? await model().update({ id, cartId, items: JSON.stringify(items) }) : await model().create({ id, cartId, items: JSON.stringify(items) });
   check(result); if (!result.data) throw new Error("Could not save your cart.");
 }
 async function initialize() {
   const run = ++generation;
   emit({ cartId: null, items: [], signedIn: false, loading: true, error: "" });
   try {
-    const session = await fetchAuthSession();
+    const session = await fetchTokenSession();
     if (run !== generation) return;
     if (!session.tokens) { userId = null; exists = false; const guest = guestState(); emit({ cartId: guest.cartId!, items: guest.cart, signedIn: false, loading: false, error: "" }); return; }
     const user = await getCurrentUser();
     if (run !== generation) return;
     userId = user.userId;
     emit({ cartId: null, items: [], signedIn: true, loading: true, error: "" });
-    const result = await model().get({ id: user.userId }, auth); check(result);
+    const result = await model().get({ id: user.userId }); check(result);
     let items = result.data ? decode(result.data.items) : [];
     const before = items;
     const guest = guestState().cart;

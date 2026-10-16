@@ -115,3 +115,12 @@ Configure `PAYPAL_ENCRYPTION_KEY` in the Amplify build environment so the Lambda
 retains access to previously encrypted credentials. Sandbox outputs stay separate
 from production. These changes require production backend deployment before the
 new frontend is served.
+
+
+Public search metadata uses a unique title, description, and self-referencing canonical URL for each product, category, policy, and main public page. Set `SITE_URL` to the preferred HTTPS domain in Amplify Hosting; that same origin is used by the sitemap. Product and category URLs that do not exist return 404.
+
+Server rendering first reads the published CDN snapshots. If a snapshot is missing or unavailable, the cached `/storefront` API reads the public Listing and ShopSettings tables, paginating listings and returning only public listing fields. Deploy the backend and frontend together (`amplify.yml` already deploys the backend first). If both sources fail, pages and the sitemap fail instead of returning an apparently successful empty catalog. Public data is loaded at request time and cached for 30 seconds, so builds do not require access to the live catalog.
+
+After deployment, submit `/sitemap.xml` in Google Search Console and inspect a product URL to verify Google's rendered page and selected canonical. Metadata and sitemap fixes do not guarantee indexing.
+
+Product URLs use the title and a persistent six-digit public listing number, for example `/listing/copper-bottle-123456`. The backend assigns numbers when published listings are first loaded, using a DynamoDB transaction to reserve both the listing-to-number mapping and the unique number. Existing cart, favorite, order, and media references keep their internal UUIDs. Deploy the backend and frontend together to provision the listing-number registry. Legacy snapshots without numbers fall back to the public API; saving a listing or website settings republishes the snapshot with assigned numbers.

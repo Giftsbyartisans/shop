@@ -1,12 +1,10 @@
 "use client";
 import "./customer-auth";
-import { generateClient } from "aws-amplify/data";
-import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+import { accountFavorite } from "./account-shopping-api";
+import { getCurrentUser } from "aws-amplify/auth";
+import { fetchTokenSession } from "@/lib/auth-session";
 import { Hub } from "aws-amplify/utils";
-import type { Schema } from "../../amplify/data/resource";
 import { EMPTY_SHOPPING, parseShopping, SHOPPING_KEY } from "./shopping";
-const client = generateClient<Schema>();
-const auth = { authMode: "userPool" as const };
 type State = { ids: string[]; signedIn: boolean; loading: boolean; error: string };
 const initial: State = { ids: [], signedIn: false, loading: true, error: "" };
 let state = initial;
@@ -19,12 +17,12 @@ const listeners = new Set<() => void>();
 function emit(next: State) { state = next; for (const listener of listeners) listener(); window.dispatchEvent(new Event("shop-shopping")); }
 function guestState() { try { return parseShopping(localStorage.getItem(SHOPPING_KEY) || EMPTY_SHOPPING); } catch { return parseShopping(EMPTY_SHOPPING); } }
 function check(result: { errors?: readonly { message: string }[] }) { if (result.errors?.length) throw new Error("Could not sync favorites. Please try again."); }
-function model() { if (!client.models.CustomerFavorite) throw new Error("Account favorites need a backend update before they can be saved."); return client.models.CustomerFavorite; }
+function model() { return accountFavorite; }
 async function initialize(forceRefresh = false) {
   const run = ++generation;
   emit({ ids: [], signedIn: false, loading: true, error: "" });
   try {
-    const session = await fetchAuthSession({ forceRefresh });
+    const session = await fetchTokenSession({ forceRefresh });
     if (run !== generation) return;
     if (!session.tokens) { userId = null; records.clear(); emit({ ids: guestState().favorites, signedIn: false, loading: false, error: "" }); return; }
     const user = await getCurrentUser();
@@ -34,7 +32,7 @@ async function initialize(forceRefresh = false) {
     const nextRecords = new Map<string, string>();
     let nextToken: string | null | undefined;
     do {
-      const result = await model().list({ ...auth, limit: 100, nextToken }); check(result);
+      const result = await model().list({ limit: 100, nextToken }); check(result);
       for (const item of result.data) nextRecords.set(item.listingId, item.id);
       nextToken = result.nextToken;
     } while (nextToken);
@@ -42,9 +40,12 @@ async function initialize(forceRefresh = false) {
     for (const listingId of guestIds) {
       if (nextRecords.has(listingId)) continue;
       const id = `${user.userId}:${listingId}`;
-      const result = await model().create({ id, listingId }, auth);
-      if (result.errors?.length || !result.data) {
-        const existing = await model().get({ id }, auth); check(existing);
+      try {
+        const result = await model().create({ id, listingId });
+        if (!result.data) throw new Error("Could not sync guest favorites.");
+      } catch {
+        // Another tab may have merged the same deterministic favorite ID.
+        const existing = await model().get({ id }); check(existing);
         if (!existing.data) throw new Error("Could not sync guest favorites. Please try again.");
       }
       nextRecords.set(listingId, id);
@@ -87,9 +88,9 @@ export async function setFavorite(listingId: string, saved: boolean) {
   }
   const id = records.get(listingId) || `${userId}:${listingId}`;
   if (saved && !records.has(listingId)) {
-    const result = await model().create({ id, listingId }, auth); check(result);
+    const result = await model().create({ id, listingId }); check(result);
     if (!result.data) throw new Error("Could not save favorite.");
-  } else if (!saved && records.has(listingId)) { check(await model().delete({ id }, auth)); }
+  } else if (!saved && records.has(listingId)) { check(await model().delete({ id })); }
   if (run !== generation) return;
   if (saved) records.set(listingId, id); else records.delete(listingId);
   emit({ ...state, ids: [...records.keys()] });

@@ -21,8 +21,9 @@ export default function CustomerAccount({ email, busy, error, onSignOut }: { ema
   const [failure, setFailure] = useState("");
   useEffect(() => {
     let active = true;
-    fetchUserAttributes().then(attributes => {
-      if (!active) return;
+    // A discarded effect must not start a second Cognito profile request.
+    Promise.resolve().then(() => active ? fetchUserAttributes() : null).then(attributes => {
+      if (!active || !attributes) return;
       setName(attributes.name || ""); setSavedName(attributes.name || "");
       setProfileEmail(attributes.email || email); setVerified(attributes.email_verified === "true");
     }).catch(() => { if (active) setFailure("Could not load your profile. Refresh the page to try again."); })

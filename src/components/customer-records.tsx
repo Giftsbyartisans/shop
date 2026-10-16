@@ -29,7 +29,17 @@ export default function CustomerRecords({ section }: { section: "addresses" | "o
   useEffect(() => {
     let active = true;
     setLoading(true); setError("");
-    const request = section === "addresses" ? loadAddresses().then(data => { if (active) setAddresses(data); }) : loadOrders().then(data => { if (active) setOrders(data); });
+    // Let effect cleanup cancel a discarded mount before starting network work.
+    const request = Promise.resolve().then(async () => {
+      if (!active) return;
+      if (section === "addresses") {
+        const data = await loadAddresses();
+        if (active) setAddresses(data);
+      } else {
+        const data = await loadOrders();
+        if (active) setOrders(data);
+      }
+    });
     request.catch(cause => { if (active) setError(cause instanceof Error ? cause.message : `Could not load your ${section === "addresses" ? "shipping addresses" : "orders"}. Please try again.`); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -99,7 +109,7 @@ export default function CustomerRecords({ section }: { section: "addresses" | "o
         <button className="primary" disabled={busy} onClick={() => { setEditing("new"); setLabelType("home"); setError(""); setNotice(""); }}>Add shipping address</button>
       </>}
     </> : orders.length ? <div className={styles.recordList}>{orders.map(order => <article className={styles.recordCard} key={order.id}>
-      <div className={styles.orderHeading}><h3><Link href={`/account/orders/${encodeURIComponent(order.id)}`} target="_blank" rel="noopener noreferrer">{order.isSample ? "Sample order" : "Order"} {order.orderNumber}</Link></h3><span className={styles.orderStatus}>{order.status === "pending" ? "Pending · unpaid" : order.status || "pending"}</span></div>
+      <div className={styles.orderHeading}><h3><Link href={`/account/orders/${encodeURIComponent(order.id)}`} target="_blank" rel="noopener noreferrer">{order.isSample ? "Sample order" : "Order"} {order.orderNumber}</Link></h3><span className={`${styles.orderStatus}${order.status === "paid" ? ` ${styles.orderPaid}` : ""}`}>{order.status === "pending" ? "Pending · unpaid" : order.status || "pending"}</span></div>
       <p>{new Date(order.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</p>
       <p>Total: {new Intl.NumberFormat("en-US", { style: "currency", currency: /^[A-Z]{3}$/.test(order.currency) ? order.currency : "USD" }).format(order.total)}</p>
       <Link href={`/account/orders/${encodeURIComponent(order.id)}`} target="_blank" rel="noopener noreferrer" className={styles.orderSummaryLink}><span className={styles.orderSummaryLabel}>View full order summary <OrderLinkArrow /></span></Link>

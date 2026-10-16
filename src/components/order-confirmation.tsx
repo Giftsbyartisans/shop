@@ -2,7 +2,7 @@
 import { endOrderConfirmation } from '@/lib/checkout-navigation';
 import Link from 'next/link';
 import { useEffect,useState } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { fetchTokenSession } from "@/lib/auth-session";
 import { backendApiUrl } from '@/lib/backend-api';
 import { loadOrder,type CustomerOrder } from '@/lib/customer-records';
 import OrderDetail from './order-detail';
@@ -14,7 +14,7 @@ export default function OrderConfirmation({id}:{id:string}) {
       let saved;try{saved=JSON.parse(sessionStorage.getItem(`shop-order-confirmation:${id}`)||'null');}catch{/* Storage may be unavailable. */}
       let result:CustomerOrder;
       if(saved?.input){
-        const session=await fetchAuthSession();const token=session.tokens?.accessToken.toString();
+        const session=await fetchTokenSession();const token=session.tokens?.accessToken.toString();
         const response=await fetch(backendApiUrl('/paypal/confirmation'),{method:'POST',headers:{'Content-Type':'application/json','X-PayPal-Mode':saved.mode==='sandbox'?'sandbox':'live',...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify(saved.input),signal:AbortSignal.timeout(20000)});
         const data=await response.json();if(!response.ok)throw new Error(data.error||'Could not verify your order.');result=data.order;
       }else result=await loadOrder(id);

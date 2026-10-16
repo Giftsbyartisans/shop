@@ -7,5 +7,5 @@ import { loadPublicCatalog, loadPublicShopContent } from "@/lib/server-shop-cont
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await connection();
   const [origin, listings, content] = await Promise.all([siteOrigin(), loadPublicCatalog(), loadPublicShopContent()]);
-  return buildSitemap(origin, listings ?? [], content?.policies ?? []);
+  return buildSitemap(origin, listings, content.policies);
 }

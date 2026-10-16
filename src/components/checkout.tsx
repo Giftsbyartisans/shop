@@ -54,11 +54,10 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
     }
     let active = true;
     setLoading(true); setError("");
-    Promise.all([loadAddresses(), fetchUserAttributes().catch(() => null)]).then(([result, attributes]) => {
+    Promise.all([loadAddresses(), fetchUserAttributes()]).then(([result, attributes]) => {
       if (!active) return;
-      let contactEmail = attributes?.email || "";
-      if (step === "payment") { try { contactEmail = sessionStorage.getItem("shop-checkout-email") || contactEmail; } catch { /* Use profile email. */ } }
-      setEmail(current => current || contactEmail);
+      const contactEmail = checkoutEmail(attributes.email);
+      setEmail(contactEmail);
       setContactReadyKey(contactKey);
       setAddresses(result);
       if (step === "payment") setAddressId(new URLSearchParams(window.location.search).get("address") || "");
@@ -102,7 +101,6 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
       if (!selected) throw new Error("Choose a shipping address.");
       const address = checkoutAddress(selected);
       if (!cart.signedIn) saveGuestCheckout({ email: contactEmail, address, label: selected.label || "Shipping address" });
-      else sessionStorage.setItem("shop-checkout-email", contactEmail);
       router.push(`/checkout/payment?address=${encodeURIComponent(addressId)}`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Complete your contact and shipping details."); }
   }
@@ -126,7 +124,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
         {error && <p role="alert">{error} <button type="button" onClick={() => setRevision(value => value + 1)}>Reload addresses</button></p>}
         {step === "address" ? <>
           <h2>Shipping address</h2>
-          <label className="checkout-contact-email">Email address (required)<input type="email" autoComplete="email" required maxLength={254} value={email} onChange={event => setEmail(event.target.value)} /></label>
+          {!cart.signedIn && <label className="checkout-contact-email">Email address (required)<input type="email" autoComplete="email" required maxLength={254} value={email} onChange={event => setEmail(event.target.value)} /></label>}
           {!cart.signedIn && <p className="muted">Continue as a guest, or <Link href="/login?next=%2Fcheckout%2Faddress">sign in to use your saved addresses</Link>.</p>}
           {addresses.length > 0 && !adding && <fieldset ref={addressSection} className={`checkout-addresses${addresses.length >= 3 ? " checkout-addresses-scroll" : ""}`} disabled={saving}><legend className="sr-only">Choose a saved shipping address</legend>{orderedAddresses.map(address => <label className={`checkout-address${address.id === addressId ? " selected" : ""}`} key={address.id}>
             <input type="radio" name="shippingAddress" checked={address.id === addressId} onChange={() => { setAddressId(address.id); setAdding(false); }} />

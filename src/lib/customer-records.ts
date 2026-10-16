@@ -1,7 +1,8 @@
 import "./customer-auth";
 import { generateClient } from "aws-amplify/data";
 import { backendApiUrl } from "./backend-api";
-import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+import { getCurrentUser } from "aws-amplify/auth";
+import { fetchTokenSession } from "@/lib/auth-session";
 import type { Schema } from "../../amplify/data/resource";
 
 const client = generateClient<Schema>();
@@ -74,9 +75,22 @@ export async function deleteAddress(id: string) {
   requireModel("ShippingAddress");
   check(await client.models.ShippingAddress.delete({ id }, auth));
 }
+// Share concurrent loads (including component remounts), scoped to the exact
+// signed-in session. Completed requests are discarded so revisits stay fresh.
+const pendingOrders = new Map<string, Promise<CustomerOrder[]>>();
 export async function loadOrders(): Promise<CustomerOrder[]> {
-  const token = (await fetchAuthSession()).tokens?.accessToken.toString();
+  const token = (await fetchTokenSession()).tokens?.accessToken.toString();
   if (!token) throw new Error("Sign in to view your orders.");
+  const existing = pendingOrders.get(token);
+  if (existing) return existing;
+  const request = fetchOrders(token).finally(() => {
+    pendingOrders.delete(token);
+  });
+  pendingOrders.set(token, request);
+  return request;
+}
+
+async function fetchOrders(token: string): Promise<CustomerOrder[]> {
   const records: CustomerOrder[] = [];
   let nextToken: string | null = null;
   const seenTokens = new Set<string>();
@@ -99,7 +113,7 @@ export async function loadOrders(): Promise<CustomerOrder[]> {
 }
 
 export async function loadOrder(id: string): Promise<CustomerOrder> {
-  const token = (await fetchAuthSession()).tokens?.accessToken.toString();
+  const token = (await fetchTokenSession()).tokens?.accessToken.toString();
   if (!token) throw new Error("Sign in to view this order.");
   const response = await fetch(backendApiUrl(`/orders/${encodeURIComponent(id)}`), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
   if (response.status === 404) throw new Error("This order was not found or is unavailable to your account.");
