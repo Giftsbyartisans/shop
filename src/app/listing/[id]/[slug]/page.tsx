@@ -7,10 +7,10 @@ import { preconnect, preload } from 'react-dom';
 import Storefront from '@/components/storefront';
 import { mediaCdnUrl, cdnImageUrl, imageSrcSet } from '@/lib/image-delivery';
 import { loadPublicCatalog, loadPublicShopContent } from '@/lib/server-shop-content';
-export default function Page({ params }: { params: Promise<{ id: string }> }) {
+export default function Page({ params }: { params: Promise<{ id: string; slug: string }> }) {
   return <Suspense fallback={<ShopSkeleton variant="product" />}><Listing params={params} /></Suspense>;
 }
-async function Listing({ params }: { params: Promise<{ id: string }> }) {
+async function Listing({ params }: { params: Promise<{ id: string; slug: string }> }) {
   if (mediaCdnUrl) preconnect(mediaCdnUrl);
   const [{ id }, initialContent, initialListings] = await Promise.all([params, loadPublicShopContent(), loadPublicCatalog()]);
   const item = resolveListing(id, initialListings);
@@ -21,7 +21,7 @@ async function Listing({ params }: { params: Promise<{ id: string }> }) {
   return <Storefront page="listing" id={item.id} initialContent={initialContent} initialListings={initialListings} />;
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+export async function generateMetadata({ params }: { params: Promise<{ id: string; slug: string }> }) {
   const [{ id }, listings] = await Promise.all([params, loadPublicCatalog()]);
   const item = resolveListing(id, listings);
   if (!item) notFound();

@@ -37,6 +37,7 @@ export function ProductShopping({ id, compact = false, mode = "both", item, show
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
   const [personalization, setPersonalization] = useState("");
   const [quantity, setQuantity] = useState(1);
   const favorites = useFavorites();
@@ -45,12 +46,13 @@ export function ProductShopping({ id, compact = false, mode = "both", item, show
   async function act(kind: "cart" | "favorite") {
     setError("");
     setBusy(true);
+    setAddingToCart(kind === "cart");
     try {
       if (kind === "favorite") await setFavorite(id, !favorite);
       else await updateShopping(current => addCartItem(current, id, item?.personalizationEnabled ? personalization : "", quantity));
       setNotice(kind === "favorite" && showFavoriteNotice ? favorite ? "Removed from favorites" : "Saved to favorites" : "");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save this item. Please try again."); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setAddingToCart(false); }
   }
   return <div className={`product-shopping${compact ? " compact" : ""}${item && mode !== "favorite" ? " listing-cart-controls" : ""}`}>
     {mode !== "favorite" && item?.personalizationEnabled && <details className="cart-personalization">
@@ -67,7 +69,7 @@ export function ProductShopping({ id, compact = false, mode = "both", item, show
         <button type="button" aria-label="Increase quantity" disabled={busy || quantity >= 99} onClick={() => setQuantity(current => current + 1)}>+</button>
       </div>
     </div>}
-    {mode !== "favorite" && <button disabled={busy || cart.loading} onClick={() => act("cart")} className={compact ? "" : "primary"}>{cartLabel}</button>}
+    {mode !== "favorite" && <button disabled={busy} aria-busy={addingToCart} onClick={() => act("cart")} className={compact ? "" : "primary"}>{addingToCart ? "Adding…" : cartLabel}</button>}
     {mode !== "cart" && <button disabled={busy || favorites.loading} onClick={() => act("favorite")} aria-pressed={favorite} aria-label={`${favorite ? "Remove from" : "Save to"} favorites`} title={favorite ? "Remove from favorites" : "Save to favorites"}><ShoppingIcon kind="favorites" />{!compact && (favorite ? "Saved" : "Favorite")}</button>}
     {(error || notice) && <span role="status" className="shopping-notice">{error || notice}</span>}
   </div>;

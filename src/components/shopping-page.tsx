@@ -100,6 +100,6 @@ export default function ShoppingPage({ kind, listings, content, ready, loadError
       <p className="shopping-summary-row"><span>Discount</span><strong>{cartTotals.discount > 0 ? "−" : ""}{formatPrice(cartTotals.discount)}</strong></p>
       <p className="shopping-summary-row"><span>Shipping charges</span><strong>{cartTotals.shipping === 0 ? "Free" : formatPrice(cartTotals.shipping)}</strong></p>
       <p className="shopping-summary-row shopping-summary-total"><span>Total</span><strong>{formatPrice(cartTotals.total)}</strong></p></> : <p role={cartError ? "alert" : "status"}>{cartError || "Calculating totals…"}</p>}
-      <BuyNow enabled={content.buyNowEnabled} ready={Boolean(cartTotals) && !placement.checking && !placement.placed} /></aside>}</div>}
+      <BuyNow enabled={content.buyNowEnabled} ready={Boolean(cartTotals) && !cart.saving && !placement.checking && !placement.placed} /></aside>}</div>}
   </main>;
 }

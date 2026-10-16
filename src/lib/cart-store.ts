@@ -7,8 +7,8 @@ import { fetchTokenSession } from "@/lib/auth-session";
 import { Hub } from "aws-amplify/utils";
 import { cartLineKey, EMPTY_SHOPPING, mergeCarts, parseShopping, SHOPPING_KEY, type Shopping } from "./shopping";
 
-type State = { cartId: string | null; items: Shopping["cart"]; signedIn: boolean; loading: boolean; error: string };
-const initial: State = { cartId: null, items: [], signedIn: false, loading: true, error: "" };
+type State = { cartId: string | null; items: Shopping["cart"]; signedIn: boolean; loading: boolean; saving: boolean; error: string };
+const initial: State = { cartId: null, items: [], signedIn: false, loading: true, saving: false, error: "" };
 let state = initial;
 let userId: string | null = null;
 let exists = false;
@@ -33,15 +33,15 @@ async function persist(id: string, items: Shopping["cart"], hasRecord: boolean, 
 }
 async function initialize() {
   const run = ++generation;
-  emit({ cartId: null, items: [], signedIn: false, loading: true, error: "" });
+  emit({ cartId: null, items: [], signedIn: false, loading: true, saving: false, error: "" });
   try {
     const session = await fetchTokenSession();
     if (run !== generation) return;
-    if (!session.tokens) { userId = null; exists = false; const guest = guestState(); emit({ cartId: guest.cartId!, items: guest.cart, signedIn: false, loading: false, error: "" }); return; }
+    if (!session.tokens) { userId = null; exists = false; const guest = guestState(); emit({ cartId: guest.cartId!, items: guest.cart, signedIn: false, loading: false, saving: false, error: "" }); return; }
     const user = await getCurrentUser();
     if (run !== generation) return;
     userId = user.userId;
-    emit({ cartId: null, items: [], signedIn: true, loading: true, error: "" });
+    emit({ cartId: null, items: [], signedIn: true, loading: true, saving: false, error: "" });
     const result = await model().get({ id: user.userId }); check(result);
     let items = result.data ? decode(result.data.items) : [];
     const before = items;
@@ -52,7 +52,7 @@ async function initialize() {
     if (guest.length || (result.data && !validCartId(result.data.cartId))) await persist(user.userId, items, Boolean(result.data), cartId);
     if (run !== generation) return;
     exists = Boolean(result.data) || guest.length > 0;
-    emit({ cartId, items, signedIn: true, loading: false, error: "" });
+    emit({ cartId, items, signedIn: true, loading: false, saving: false, error: "" });
     if (guest.length) try {
       const current = guestState();
       current.cart = current.cart.filter(item => !guest.some(saved => cartLineKey(saved) === cartLineKey(item) && saved.quantity === item.quantity));
@@ -84,9 +84,17 @@ export function updateCart(update: (state: Shopping) => Shopping) {
     const items = update({ ...current, cart: state.items }).cart;
     const cartId = nextCartId(state.cartId, state.items, items);
     if (state.signedIn && userId) {
-      await persist(userId, items, exists, cartId);
-      if (requestedGeneration !== generation) return;
-      exists = true; emit({ ...state, cartId, items });
+      const before = state;
+      emit({ ...state, cartId, items, saving: true });
+      try {
+        await persist(userId, items, exists, cartId);
+        if (requestedGeneration !== generation) return;
+        exists = true;
+        emit({ ...state, saving: false });
+      } catch (cause) {
+        if (requestedGeneration === generation) emit({ ...before, saving: false });
+        throw cause;
+      }
     } else {
       localStorage.setItem(SHOPPING_KEY, JSON.stringify({ ...current, cartId, cart: items }));
       emit({ ...state, cartId, items }); window.dispatchEvent(new Event("shop-shopping"));
