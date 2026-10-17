@@ -1467,7 +1467,9 @@ button:not([data-slot="checkbox"]){-webkit-appearance:none;appearance:none}
 }
 :is(.manager-shell,.manager-login,.manager-editor-page) h1,
 :is(.manager-shell,.manager-login,.manager-editor-page) h1 :is(a,span) {
-  font-size:20px!important;
+  font-size:24px!important;
+  font-weight:500!important;
+  letter-spacing:0.3px;
 }
 .order-confirmation-message{margin-bottom:28px;padding:22px;background:#f4f8ee;border:1px solid #dce8cf;border-radius:10px}.order-confirmation-message h2{font-size:24px;margin:0 0 12px}.order-confirmation-message p{line-height:1.7;margin:0}.order-confirmation-home{display:block;margin-top:24px;padding:13px 20px;background:#222;color:#fff;text-align:center;border-radius:24px}
 
@@ -1486,3 +1488,5 @@ button:not([data-slot="checkbox"]){-webkit-appearance:none;appearance:none}
 .not-found-page>.eyebrow{font-size:clamp(48px,6vw,72px);font-weight:600;line-height:1;letter-spacing:-2px;color:var(--foreground);margin-bottom:24px}
 
 .listing-detail .product-shipping-policy p{font-weight:300}
+
+.manager-shell .manager-sidebar-title h2{font-size:24px!important;font-weight:500!important;letter-spacing:0.3px}
