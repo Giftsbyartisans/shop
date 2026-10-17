@@ -17,6 +17,7 @@ import { useCartTotals } from "./use-cart-totals";
 import { useCartPlacement } from "./use-cart-placement";
 import PayPalCheckout from "./paypal-checkout";
 import ShopImage from "./shop-image";
+import { useGuestCheckoutEmail } from "./use-guest-checkout-email";
 const fields = [
   ["recipient", "Full name", "name", true], ["line1", "Street address", "address-line1", true],
   ["line2", "Apartment, suite, etc. (optional)", "address-line2", false], ["city", "City", "address-level2", true],
@@ -35,6 +36,13 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [email, setEmail] = useState("");
+  const guestEmail = useGuestCheckoutEmail(email, !cart.loading && !cart.signedIn);
+  const canUseEmail = cart.signedIn || guestEmail.status === "available";
+  function requireGuestEmail() {
+    if (cart.signedIn) return;
+    if (guestEmail.status === "registered") throw new Error("This email is already registered. Sign in or use a different email to continue.");
+    if (!canUseEmail) throw new Error(guestEmail.error || "Please wait while we check your email.");
+  }
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
   useEffect(() => { setEstimatedDelivery(deliveryEstimate(new Date())); }, []);
   const revisionKey = JSON.stringify({ listings, sale: [content.saleEnabled, content.salePercent] });
@@ -84,6 +92,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
       input.label = String(data.get("label") || "").trim(); input.isDefault = data.get("isDefault") === "on";
       if (!input.label || input.label.length > 40 || fields.some(([key, , , required]) => required && !input[key])) throw new Error("Complete all required address fields.");
       const contactEmail = checkoutEmail(email);
+      requireGuestEmail();
       checkoutAddress(input);
       input.email = contactEmail;
       const address = cart.signedIn ? await saveAddress(input) : { ...input, id: "guest" };
@@ -98,6 +107,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
   function nextStep() {
     try {
       const contactEmail = checkoutEmail(email);
+      requireGuestEmail();
       if (!selected) throw new Error("Choose a shipping address.");
       const address = checkoutAddress(selected);
       if (!cart.signedIn) saveGuestCheckout({ email: contactEmail, address, label: selected.label || "Shipping address" });
@@ -107,7 +117,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
   const placement = useCartPlacement(cart.cartId, ready && !cart.loading && !cart.error && cart.items.length > 0);
   let validAddress = false;
   try { checkoutAddress(selected); validAddress = true; } catch { /* Address step collects missing details. */ }
-  const redirectTo = checkoutRedirect({ ready, cartLoading: cart.loading, cartError: !!cart.error, hasItems: !!cart.items.length, placed: placement.placed, payment: step === "payment", contactReady: contactReadyKey === contactKey && !loading, contactError: !!error, validContact: validEmail && validAddress }, pendingOrderConfirmation());
+  const redirectTo = checkoutRedirect({ ready, cartLoading: cart.loading, cartError: !!cart.error, hasItems: !!cart.items.length, placed: placement.placed, payment: step === "payment", contactReady: contactReadyKey === contactKey && !loading && guestEmail.status !== "checking", contactError: !!error || guestEmail.status === "error", validContact: validEmail && canUseEmail && validAddress }, pendingOrderConfirmation());
   useEffect(() => { if (redirectTo) router.replace(redirectTo); }, [redirectTo, router]);
   const heading = <h1>Checkout</h1>;
   if (redirectTo) return <main className="shop checkout-page">{heading}<p role="status">Redirecting…</p></main>;
@@ -121,10 +131,13 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
   return <main className="shop checkout-page">{heading}<div className="checkout-layout">
     <section className="checkout-panel">
       {loading ? <p role="status">Loading shipping addresses…</p> : <>
+        {!cart.signedIn && guestEmail.status === "checking" && <p role="status">Checking email…</p>}
+        {!cart.signedIn && guestEmail.status === "registered" && <p role="alert">This email is already registered. <Link href="/login?next=%2Fcheckout%2Faddress">Sign in</Link> or use a different email to continue.</p>}
+        {!cart.signedIn && guestEmail.status === "error" && <p role="alert">{guestEmail.error} <button type="button" onClick={guestEmail.retry}>Try again</button></p>}
         {error && <p role="alert">{error} <button type="button" onClick={() => setRevision(value => value + 1)}>Reload addresses</button></p>}
         {step === "address" ? <>
           <h2>Shipping address</h2>
-          {!cart.signedIn && <label className="checkout-contact-email">Email address (required)<input type="email" autoComplete="email" required maxLength={254} value={email} onChange={event => setEmail(event.target.value)} /></label>}
+          {!cart.signedIn && <label className="checkout-contact-email">Email address (required)<input type="email" autoComplete="email" required maxLength={254} value={email} onChange={event => { setEmail(event.target.value); setError(""); }} /></label>}
           {!cart.signedIn && <p className="muted">Continue as a guest, or <Link href="/login?next=%2Fcheckout%2Faddress">sign in to use your saved addresses</Link>.</p>}
           {addresses.length > 0 && !adding && <fieldset ref={addressSection} className={`checkout-addresses${addresses.length >= 3 ? " checkout-addresses-scroll" : ""}`} disabled={saving}><legend className="sr-only">Choose a saved shipping address</legend>{orderedAddresses.map(address => <label className={`checkout-address${address.id === addressId ? " selected" : ""}`} key={address.id}>
             <input type="radio" name="shippingAddress" checked={address.id === addressId} onChange={() => { setAddressId(address.id); setAdding(false); }} />
@@ -135,7 +148,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
             <label>Address label<input name="label" maxLength={40} required /></label>
             {fields.map(([key, label, autoComplete, required]) => <label key={key}>{label}<input name={key} autoComplete={autoComplete} type={key === "phone" ? "tel" : "text"} required={required} maxLength={key === "phone" || key === "postalCode" ? 30 : 150} /></label>)}
             {cart.signedIn && <label className="checkout-default"><input type="checkbox" name="isDefault" />Set as default address</label>}
-            <div className="checkout-form-actions"><button className="primary" type="submit">{saving ? "Saving…" : "Save address"}</button>{addresses.length > 0 && <button type="button" onClick={() => setAdding(false)}>Cancel</button>}</div>
+            <div className="checkout-form-actions"><button className="primary" type="submit" disabled={!canUseEmail}>{saving ? "Saving…" : "Save address"}</button>{addresses.length > 0 && <button type="button" onClick={() => setAdding(false)}>Cancel</button>}</div>
           </fieldset></form>}
         </> : <>
           <h2>Payment</h2>
@@ -150,7 +163,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
       return <article className="checkout-summary-item" key={key}>{item && <ShopImage src={item.images?.[0] || item.image} alt={item.title} sizes="64px" />}<div><h3>{item?.title || "Unavailable product"}</h3><p>Quantity: {entry.quantity}</p>{entry.personalization && <p className="checkout-personalization">Personalization: {entry.personalization}</p>}<p>{line ? formatPrice(line.total) : "—"}</p></div></article>;
     })}</div>
       {totals ? <><p className="shopping-summary-row"><span>MSRP</span><span>{formatPrice(totals.subtotal)}</span></p><p className="shopping-summary-row"><span>Discount</span><span>{totals.discount > 0 ? "−" : ""}{formatPrice(totals.discount)}</span></p><p className="shopping-summary-row"><span>Shipping charges</span><span>{totals.shipping === 0 ? "Free" : formatPrice(totals.shipping)}</span></p><p className="shopping-summary-row shopping-summary-total"><span>Total</span><span>{formatPrice(totals.total)}</span></p></> : <p role={priceError ? "alert" : "status"}>{priceError || "Calculating totals…"}</p>}
-      {step === "address" ? <div className="checkout-next"><Link href="/cart">Back to cart</Link><button className="primary" type="button" disabled={loading || cart.saving || !selected || !validEmail || adding || saving || !totals} onClick={nextStep}>Next →</button></div> : <>{totals && selected && !cart.saving && !loading && contactReadyKey === contactKey && validEmail && validAddress && <PayPalCheckout cartId={cart.cartId!} key={JSON.stringify({ cartId:cart.cartId, items: cart.items, addressId, total: totals.total, email, selected })} items={cart.items} addressId={addressId} total={totals.total} email={email} guestAddress={cart.signedIn ? undefined : checkoutAddress(selected)} enabled={content.buyNowEnabled} />}<Link href="/checkout/address">← Back to shipping address</Link></>}
+      {step === "address" ? <div className="checkout-next"><Link href="/cart">Back to cart</Link><button className="primary" type="button" disabled={loading || cart.saving || !selected || !validEmail || !canUseEmail || adding || saving || !totals} onClick={nextStep}>Next →</button></div> : <>{totals && selected && !cart.saving && !loading && contactReadyKey === contactKey && validEmail && canUseEmail && validAddress && <PayPalCheckout cartId={cart.cartId!} key={JSON.stringify({ cartId:cart.cartId, items: cart.items, addressId, total: totals.total, email, selected })} items={cart.items} addressId={addressId} total={totals.total} email={email} guestAddress={cart.signedIn ? undefined : checkoutAddress(selected)} enabled={content.buyNowEnabled} />}<Link href="/checkout/address">← Back to shipping address</Link></>}
     </aside>
   </div></main>;
 }

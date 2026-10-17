@@ -28,3 +28,19 @@ export function paypalClient(environment: PayPalEnvironment, credentials: PayPal
     get: (id:string) => request(`/v2/checkout/orders/${id}`),
     capture: (id:string) => request(`/v2/checkout/orders/${id}/capture`,'POST',{},`capture:${id}`) };
 }
+
+export async function completePaidOrder(payment: PayPalOrder, attempt: OrderRecord, store: {
+  create(order: OrderRecord): Promise<boolean>;
+  get(id: string): Promise<OrderRecord | null>;
+}) {
+  const captureId = captureReceipt(payment, attempt);
+  if (payment.id !== attempt.paypalOrderId) throw new OrderError('Payment session does not match this checkout.', 409);
+  const now = new Date().toISOString();
+  const order: OrderRecord = { ...attempt, status: 'paid', paypalCaptureId: captureId, createdAt: now, updatedAt: now, __typename: 'CustomerOrder' };
+  if (await store.create(order)) return order;
+  const saved = await store.get(order.id);
+  if (!saved || saved.paypalCaptureId !== captureId || saved.paypalOrderId !== payment.id || saved.owner !== attempt.owner || saved.requestFingerprint !== attempt.requestFingerprint) {
+    throw new OrderError('Payment was received but the order could not be confirmed. Please retry or contact the shop.', 503);
+  }
+  return saved;
+}

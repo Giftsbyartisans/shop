@@ -9,7 +9,7 @@ npm install
 npm run sandbox
 ```
 
-The sandbox uses the configured `shop-dev` AWS profile. `npm run sandbox` writes its configuration to `.amplify/sandbox-outputs/amplify_outputs.json`, preserving the root backend configuration used by this checkout. The root `amplify_outputs.json` must be present before building the frontend. The sandbox has separate data and users; it does not contain the production catalog. For a sandbox frontend, explicitly copy the sandbox configuration to the root in a separate development checkout. Existing outputs from the Todo starter do not support the new models.
+The sandbox uses the configured `shop-dev` AWS profile. `npm run sandbox` writes its configuration to `.amplify/sandbox-outputs/amplify_outputs.json`, preserving the root backend configuration used by this checkout. The root `amplify_outputs.json` must be present before building the frontend. The sandbox has separate data and users; it does not contain the production catalog. For a sandbox frontend, explicitly copy the sandbox configuration to the root in a separate development checkout.
 
 In the deployed Cognito user pool, create an administrator with an email and temporary password, then add the user to the `Admins` group. Open `/admin` to sign in and set their permanent password. Group membership is granted through AWS administration, never through the public frontend.
 
@@ -22,13 +22,13 @@ npm run build
 
 ## Catalog and inbox
 
-Admins can create, edit, publish, unpublish, and delete listings and import the bundled sample catalog. Customers browse published listings on `/`, `/collection`, and `/listing/[id]`, with search, category filtering, and price sorting. Contact and wholesale forms persist inquiries to the admin inbox; they do not send email.
+Admins can create, edit, publish, unpublish, and delete listings and import their own catalog. Customers browse published listings on `/`, `/collection`, and `/listing/[publicId]/[slug]`, with search, category filtering, and price sorting. Contact and wholesale forms persist inquiries to the admin inbox; they do not send email.
 
 `DraftListing` is accessible only to the `Admins` Cognito group. `Listing` holds public copies with guest and authenticated read access and admin write access. `Inquiry` allows customer creation and admin reading/deletion. Public users cannot query drafts or read customer messages.
 
 Publication uses sequential requests across the draft and public models. Unpublishing and deletion remove public copies first. If a request fails midway, the portal reports the error; refresh and save again to reconcile the public copy. This is not an atomic multi-table transaction. The portal does not currently support concurrent edit conflict detection.
 
-No catalog is automatically seeded. Use “Import sample listings” in `/admin` or add your own listings. Browser demo data is not migrated. Admins can use HTTPS image URLs or upload PNG, JPEG, and WebP images up to 8 MB. Uploaded images live under the public-read, admin-write `media/` storage prefix. Checkout is outside this implementation.
+No catalog is automatically seeded. Add listings or import your own catalog in `/admin`. Listings without photos stay as drafts until a real image is provided. Admins can use HTTPS image URLs or upload PNG, JPEG, and WebP images up to 8 MB. Uploaded images live under the public-read, admin-write `media/` storage prefix. Payments use PayPal checkout.
 
 For a hosted deployment, deploy the Amplify backend and generate matching outputs before the Next.js build. Do not use sandbox resources as the production backend.
 
@@ -74,7 +74,7 @@ Redeploy `main` through Amplify Hosting after pushing this repair. The stack was
 
 ### Early homepage banner loading
 
-Saving website settings now publishes the same public content to `media/website-settings.json` with a 30-second CloudFront cache policy. After deploying this change, save Website settings once to create the snapshot. The homepage reads it on the server, renders the saved banner in the initial HTML, and emits an image preload with responsive sizes plus a CDN preconnect. This removes the browser-side Amplify settings/authentication wait from the banner's initial request. Snapshot results are cached on the server for up to 60 seconds; combined CDN/server caching can briefly show earlier settings (roughly up to 90 seconds). Client-side settings revalidation still applies the current database values. A missing or unavailable snapshot uses the existing client loader without displaying sample banner text. Legacy original-sized banner files should be re-uploaded to get WebP variants.
+Saving website settings now publishes the same public content to `media/website-settings.json` with a 30-second CloudFront cache policy. After deploying this change, save Website settings once to create the snapshot. The homepage reads it on the server, renders the saved banner in the initial HTML, and emits an image preload with responsive sizes plus a CDN preconnect. This removes the browser-side Amplify settings/authentication wait from the banner's initial request. Snapshot results are cached on the server for up to 60 seconds; combined CDN/server caching can briefly show earlier settings (roughly up to 90 seconds). Missing snapshots use the server-side public API fallback. Legacy original-sized banner files should be re-uploaded to get WebP variants.
 
 
 ### Early catalog image loading
@@ -124,3 +124,9 @@ Server rendering first reads the published CDN snapshots. If a snapshot is missi
 After deployment, submit `/sitemap.xml` in Google Search Console and inspect a product URL to verify Google's rendered page and selected canonical. Metadata and sitemap fixes do not guarantee indexing.
 
 Product URLs use the title and a persistent six-digit public listing number, for example `/listing/123456/copper-bottle`. The backend assigns numbers when published listings are first loaded, using a DynamoDB transaction to reserve both the listing-to-number mapping and the unique number. Existing cart, favorite, order, and media references keep their internal UUIDs. Deploy the backend and frontend together to provision the listing-number registry. Legacy snapshots without numbers fall back to the public API; saving a listing or website settings republishes the snapshot with assigned numbers.
+
+Guest shipping checkout checks `POST /checkout/email` before continuing. Registered emails must sign in or use another address; signed-in shoppers use their account email. Lambda repeats this check for new guest PayPal orders, with `cognito-idp:ListUsers` permission scoped to the shop user pool. Deploy backend and frontend together to enable this check. Existing payment captures remain available.
+
+Checkout snapshots are stored privately in the `PaymentAttempts` table. The CustomerOrder table is written only after a completed PayPal capture is verified against the expected order, amount, and currency. Failed or cancelled payments never create customer orders. Successful retries reuse the same order and preserve fulfillment changes. Legacy unpaid rows are excluded from customer history, guest lookup, and admin lists. Deploy the backend first to provision `PAYMENT_ATTEMPTS_TABLE` and its permissions.
+
+Google Merchant Center feed: `/google-merchant.xml` exports all published listings as RSS XML with stable internal product IDs, public product links, HTTPS images, USD prices, current sale prices, condition=new, and identifier_exists=no. The owner confirmed published products are new, available to order, and have no manufacturer GTIN or MPN. If that changes, update the feed attributes before adding those products. Disabled online ordering is exported as out_of_stock. Configure shipping and returns in Merchant Center, verify/claim the shop domain, and add the deployed feed URL as a scheduled file source. Catalog failures return HTTP 503 instead of an empty successful feed.

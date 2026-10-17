@@ -526,7 +526,7 @@ export default function AdminClient() {
                   title: "",
                   description: "",
                   category: content.categories[0]?.name || "Uncategorized",
-                  image: "/demo/gift-0.svg",
+                  image: "",
                   price: 0,
                   published: false,
                 })

@@ -74,3 +74,12 @@ test("ordering toggle accepts only boolean settings", () => {
   assert.doesNotThrow(() => validateContent({ ...defaultContent, buyNowEnabled: false }));
   assert.throws(() => validateContent({ ...defaultContent, buyNowEnabled: "false" } as unknown as typeof defaultContent), /Buy now/);
 });
+
+test('new shops have no seeded categories, banners, reviews, or marketing copy', () => {
+  assert.deepEqual(defaultContent.categories, []);
+  assert.deepEqual(defaultContent.banners, []);
+  assert.deepEqual(defaultContent.reviews, []);
+  assert.equal(defaultContent.bannerTitle, '');
+  assert.equal(defaultContent.bannerText, '');
+  assert.equal(defaultContent.announcement, '');
+});

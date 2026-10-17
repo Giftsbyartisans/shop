@@ -45,11 +45,10 @@ export const defaultContent: ShopContent = {
     "Interested in products for your store, team, or event? Tell us what you have in mind.",
   logo: "",
   logoAlt: "GiftsByArtisans",
-  announcement: "Thoughtfully made. Beautifully crafted.",
-  bannerTitle: "For the moments that matter.",
-  bannerText:
-    "Discover products with a personal touch. Find your favorite, then explore the possibilities of thoughtful giving.",
-  footerText: "Made for thoughtful giving.",
+  announcement: "",
+  bannerTitle: "",
+  bannerText: "",
+  footerText: "",
   instagram: "",
   etsy: "",
   pinterest: "",
@@ -57,12 +56,7 @@ export const defaultContent: ShopContent = {
   contactEmail: "",
   phone: "",
   address: "",
-  categories: [
-    "Personalized products",
-    "Home & living",
-    "Jewelry",
-    "Special occasions",
-  ].map((name, i) => ({ id: String(i), name, image: `/demo/gift-${i}.svg` })),
+  categories: [],
   policies: [
     {
       id: "ordering",
@@ -137,8 +131,7 @@ export function validateContent(content: ShopContent) {
   for (const value of images)
     if (
       value &&
-      !value.startsWith("s3:media/") &&
-      !value.startsWith("/demo/")
+      !value.startsWith("s3:media/")
     ) {
       try {
         if (new URL(value).protocol !== "https:") throw new Error();

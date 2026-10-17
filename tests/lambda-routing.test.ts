@@ -8,7 +8,7 @@ function event(path: string, method: string, body = ""): APIGatewayProxyEventV2 
 }
 test("Lambda requires admin tokens before reading or changing payment settings or importing photos", async () => {
   const { handler } = await import("../amplify/functions/shop-api/handler");
-  assert.equal((await handler(event("/orders", "POST", "{}"))).statusCode, 400);
+  assert.equal((await handler(event("/orders", "POST", "{}"))).statusCode, 404);
   assert.equal((await handler(event("/paypal/confirmation", "POST", "{}"))).statusCode, 400);
   assert.equal((await handler(event("/orders", "GET"))).statusCode, 401);
   assert.equal((await handler(event("/orders/order-id", "GET"))).statusCode, 401);

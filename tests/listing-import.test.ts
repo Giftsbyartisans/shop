@@ -29,7 +29,7 @@ test("JSON preserves IDs and published status", () => {
         title: "Gift",
         description: "A gift",
         price: 12,
-        image: "/demo/gift-0.svg",
+        image: "https://example.com/product.webp",
         published: true,
       },
     ]),

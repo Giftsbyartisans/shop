@@ -26,3 +26,31 @@ test('PayPal authentication failures do not expose credentials or response conte
   const transport = (async()=>Response.json({error:'secret detail'},{status:401})) as typeof fetch;
   await assert.rejects(paypalClient('live',{clientId:'client',secret:'private'},transport).create(order),/PayPal is unavailable/);
 });
+
+test('only a completed matching capture creates a customer order', async () => {
+  const { completePaidOrder } = await import('../amplify/functions/shop-api/paypal-checkout');
+  const attempt = { ...order, paypalOrderId: 'PAYPAL123', owner: 'customer', requestFingerprint: 'snapshot', status: 'pending' } as OrderRecord;
+  const records = new Map<string, OrderRecord>();
+  const store = { create: async (value: OrderRecord) => { records.set(value.id, value); return true; }, get: async (id: string) => records.get(id) ?? null };
+  for (const status of ['CREATED', 'APPROVED', 'VOIDED', 'PENDING']) {
+    const payment = completed(); payment.status = status;
+    await assert.rejects(completePaidOrder(payment, attempt, store));
+    assert.equal(records.size, 0);
+  }
+  const mismatched = completed(); mismatched.id = 'OTHER123';
+  await assert.rejects(completePaidOrder(mismatched, attempt, store));
+  assert.equal(records.size, 0);
+  const saved = await completePaidOrder(completed(), attempt, store);
+  assert.equal(saved.status, 'paid');
+  assert.equal(saved.paypalCaptureId, 'CAPTURE123');
+  assert.equal(records.size, 1);
+  assert.equal(attempt.status, 'pending');
+});
+
+test('payment retries preserve the existing order and fulfillment data', async () => {
+  const { completePaidOrder } = await import('../amplify/functions/shop-api/paypal-checkout');
+  const attempt = { ...order, paypalOrderId: 'PAYPAL123', owner: 'customer', requestFingerprint: 'snapshot' } as OrderRecord;
+  const saved = { ...attempt, status: 'paid', paypalCaptureId: 'CAPTURE123', createdAt: '2026-10-01T00:00:00Z', fulfillmentProgress: 'completed' } as OrderRecord;
+  assert.equal(await completePaidOrder(completed(), attempt, { create: async () => false, get: async () => saved }), saved);
+  await assert.rejects(completePaidOrder(completed(), attempt, { create: async () => false, get: async () => ({ ...saved, paypalCaptureId: 'DIFFERENT' }) }));
+});

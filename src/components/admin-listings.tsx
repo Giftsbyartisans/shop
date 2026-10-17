@@ -3,7 +3,6 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatPrice, type Listing } from "@/lib/catalog";
-import { demoListings } from "@/lib/catalog";
 import { importListings } from "@/lib/listing-import";
 import ShopImage from "./shop-image";
 import { createEtsyPhotoCopier } from "./etsy-photo-upload";
@@ -439,11 +438,6 @@ export default function AdminListings({
                   ? "Try changing your search or filters."
                   : "Create a product listing or import your catalog."}
               </p>
-              {!items.length && (
-                <button onClick={() => onSave([...demoListings])}>
-                  Import sample listings
-                </button>
-              )}
             </div>
           )}
         </div>

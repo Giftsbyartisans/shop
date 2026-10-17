@@ -1,5 +1,6 @@
+import { registeredCheckoutEmail } from "./checkout-email";
 import { listingNumber } from "./listing-numbers";
-import { paypalClient, captureReceipt } from "./paypal-checkout";
+import { paypalClient, captureReceipt, completePaidOrder } from "./paypal-checkout";
 import { orderUpdate } from "../../../src/lib/admin-orders";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { checkoutEmail } from "../../../src/lib/checkout-contact";
@@ -18,7 +19,7 @@ import { defaultContent, type ShopContent } from "../../../src/lib/content";
 import type { Listing } from "../../../src/lib/catalog";
 import type { CartItem } from "../../../src/lib/shopping";
 import { readPayPalSettings, writePayPalSettings } from "./paypal-storage";
-import { cartOrderId, placeOrder, orderOwners, ownedOrderDetails, OrderError, type OrderRecord } from "./orders";
+import { cartOrderId, preparePaymentAttempt, hasConfirmedPayment, orderOwners, ownedOrderDetails, OrderError, type OrderRecord } from "./orders";
 import { defaultIcon } from "./default-icon";
 const s3 = new S3Client({}), db = new DynamoDBClient({});
 const verifier = CognitoJwtVerifier.create({ userPoolId: process.env.USER_POOL_ID!, clientId: process.env.USER_POOL_CLIENT_ID!, tokenUse: "access", groups: ["Admins"] });
@@ -43,6 +44,13 @@ function body(event: APIGatewayProxyEventV2, max = 8192) {
 }
 export async function handler(event: APIGatewayProxyEventV2) {
   const path = event.rawPath, method = event.requestContext.http.method;
+  if (path === "/checkout/email" && method === "POST") {
+    let email: string;
+    try { email = checkoutEmail(body(event, 2048).email); }
+    catch { return json({ error: "Enter a valid email address." }, 400); }
+    try { return json({ registered: await registeredCheckoutEmail(email) }); }
+    catch { return json({ error: "Could not check your email. Please try again." }, 503); }
+  }
   if (path === "/storefront" && method === "GET") {
     try {
       const listings: Record<string, unknown>[] = [];
@@ -51,6 +59,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
         const result = await db.send(new ScanCommand({ TableName: process.env.LISTING_TABLE, ExclusiveStartKey: cursor }));
         for (const row of result.Items ?? []) {
           const item = Object.fromEntries(Object.entries(row).map(([key, value]) => [key, decode(value)]));
+          if (typeof item.image === "string" && item.image.startsWith("/demo/")) continue;
           const fields = ["id", "title", "description", "image", "price", "category", "createdAt", "etsyUrl", "pinterestUrl", "salePrice", "personalizationEnabled", "personalizationMode", "personalizationTemplateId", "personalizationHeading", "personalizationText", "personalizationPrice", "images", "videos"];
           listings.push({ ...Object.fromEntries(fields.filter(key => item[key] != null).map(key => [key, item[key]])), published: true });
         }
@@ -106,7 +115,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
       const emailOrders = async () => {
         const result = await db.send(new QueryCommand({ TableName: process.env.ORDER_TABLE, IndexName: "byEmail",
           KeyConditionExpression: "email = :email", ExpressionAttributeValues: { ":email": { S: email } }, Limit: 100 }));
-        return (result.Items ?? []).map(item => Object.fromEntries(Object.entries(item).map(([key, value]) => [key, decode(value)])));
+        return (result.Items ?? []).map(item => Object.fromEntries(Object.entries(item).map(([key, value]) => [key, decode(value)]))).filter(hasConfirmedPayment);
       };
       if (path === "/order-finder/code") {
         if (!email) throw new OrderError("Enter your email address.");
@@ -141,7 +150,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
       if (!/^GBA-[A-F0-9]{32}$/.test(trackingNumber)) throw new OrderError("Enter an email address or tracking number.");
       const result = await db.send(new QueryCommand({ TableName: process.env.ORDER_TABLE, IndexName: "byTrackingNumber", KeyConditionExpression: "trackingNumber = :tracking", ExpressionAttributeValues: { ":tracking": { S: trackingNumber } }, Limit: 1 }));
       const item = result.Items?.[0];
-      if (!item) throw new OrderError("No order matches those details.", 404);
+      if (!item || !item.paypalCaptureId?.S) throw new OrderError("No order matches those details.", 404);
       return json({ order: publicOrder(Object.fromEntries(Object.entries(item).map(([key, value]) => [key, decode(value)]))) });
     } catch (error) {
       // Log the error class only; never log email, codes, or order details.
@@ -162,6 +171,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
         try { id = decodeURIComponent(path.slice("/orders/".length)); } catch { return json({ error: "Invalid order ID." }, 400); }
         if (!/^[a-zA-Z0-9_-]{1,200}$/.test(id)) return json({ error: "Invalid order ID." }, 400);
         const saved = await record(process.env.ORDER_TABLE, id);
+        if (!hasConfirmedPayment(saved)) return json({ error: "Order not found." }, 404);
         try { return json({ order: ownedOrderDetails(saved, { sub: customer.sub, username: customer.username }) }); }
         catch (error) { if (error instanceof OrderError) return json({ error: error.message }, error.status); throw error; }
       }
@@ -183,7 +193,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
         // Return account data only, not the internal retry fingerprint.
         const { requestFingerprint: _fingerprint, __typename: _typename, ...order } = record;
         return order;
-      });
+      }).filter(hasConfirmedPayment);
       return json({ orders, nextToken: result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url") : null });
     } catch { return json({ error: "Could not load your order history. Please try again." }, 503); }
   }
@@ -191,8 +201,8 @@ export async function handler(event: APIGatewayProxyEventV2) {
     try {
       const input = body(event,1024);
       const mode = process.env.PAYPAL_MODE === "live" && event.headers["x-paypal-mode"] !== "sandbox" ? "live" : "sandbox";
-      const [payment,sample] = await Promise.all([record(process.env.ORDER_TABLE,cartOrderId(input.cartId,mode)),record(process.env.ORDER_TABLE,cartOrderId(input.cartId,"sample"))]);
-      return json({ placed: payment?.status === "paid" || !!sample });
+      const payment = await record(process.env.ORDER_TABLE,cartOrderId(input.cartId,mode));
+      return json({ placed: hasConfirmedPayment(payment) });
     } catch (error) { return json({ error:error instanceof OrderError ? error.message : "Could not check cart status. Please retry." },error instanceof OrderError ? error.status : 503); }
   }
   if (path === "/paypal/config" && method === "GET") {
@@ -203,7 +213,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
       return json({ configured, environment, clientId: configured ? settings[environment].clientId : "", currency: "USD" });
     } catch { return json({ error: "PayPal settings could not be loaded." },503); }
   }
-  if ((path === "/orders" || path === "/paypal/create" || path === "/paypal/capture" || path === "/paypal/confirmation") && method === "POST") {
+  if ((path === "/paypal/create" || path === "/paypal/capture" || path === "/paypal/confirmation") && method === "POST") {
     const token = event.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
     let customer = null;
     if (token) {
@@ -212,10 +222,16 @@ export async function handler(event: APIGatewayProxyEventV2) {
     }
     try {
       const input = body(event, 128 * 1024);
-      const paymentMode = path.startsWith("/paypal/") ? (process.env.PAYPAL_MODE === "live" && event.headers["x-paypal-mode"] !== "sandbox" ? "live" : "sandbox") : undefined;
+      if (!customer && path === "/paypal/create") {
+        let guestEmail: string;
+        try { guestEmail = checkoutEmail(input.email); }
+        catch { throw new OrderError("Enter a valid email address."); }
+        if (await registeredCheckoutEmail(guestEmail)) throw new OrderError("This email is already registered. Sign in or use a different email to continue.", 409);
+      }
+      const paymentMode = process.env.PAYPAL_MODE === "live" && event.headers["x-paypal-mode"] !== "sandbox" ? "live" : "sandbox";
       const credentials = paymentMode && path !== "/paypal/confirmation" ? activePayPalCredentials(await readPayPalSettings(),paymentMode) : undefined;
-      const receipt = await placeOrder(input, customer ? { sub: customer.sub, username: customer.username } : null, {
-        getOrder: async id => await record(process.env.ORDER_TABLE, id) as OrderRecord | null,
+      const receipt = await preparePaymentAttempt(input, customer ? { sub: customer.sub, username: customer.username } : null, {
+        getOrder: async id => (await record(process.env.ORDER_TABLE, id) ?? await record(process.env.PAYMENT_ATTEMPTS_TABLE, id)) as OrderRecord | null,
         address: id => record(process.env.ADDRESS_TABLE, id),
         catalog: async ids => {
           const settings = await record(process.env.SHOP_SETTINGS_TABLE, "website");
@@ -226,25 +242,40 @@ export async function handler(event: APIGatewayProxyEventV2) {
         create: async order => {
           if (path === "/paypal/confirmation") throw new OrderError("Order confirmation not found.",404);
           const Item = Object.fromEntries(Object.entries(order).map(([key, value]) => [key, typeof value === "number" ? { N: String(value) } : typeof value === "boolean" ? { BOOL: value } : { S: value }]));
-          try { await db.send(new PutItemCommand({ TableName: process.env.ORDER_TABLE, Item, ConditionExpression: "attribute_not_exists(id)" })); return true; }
+          try { await db.send(new PutItemCommand({ TableName: process.env.PAYMENT_ATTEMPTS_TABLE, Item, ConditionExpression: "attribute_not_exists(id)" })); return true; }
           catch (error) { if (error instanceof Error && error.name === "ConditionalCheckFailedException") return false; throw error; }
         },
       }, paymentMode);
       if (paymentMode) {
-        const order = await record(process.env.ORDER_TABLE,receipt.id) as OrderRecord;
+        const savedOrder = await record(process.env.ORDER_TABLE,receipt.id) as OrderRecord | null;
+        const order = savedOrder ?? await record(process.env.PAYMENT_ATTEMPTS_TABLE,receipt.id) as OrderRecord | null;
+        if (!order) throw new OrderError("Payment session expired. Please restart checkout.", 409);
+        const paymentTable = savedOrder ? process.env.ORDER_TABLE : process.env.PAYMENT_ATTEMPTS_TABLE;
         if (order.paymentMethod !== "paypal" || order.paypalMode !== paymentMode) throw new OrderError("Payment session does not match this checkout.",409);
         if (path === "/paypal/confirmation") {
-          if (order.status !== "paid") throw new OrderError("Payment has not been confirmed for this order.",409);
+          if (!hasConfirmedPayment(order)) throw new OrderError("Payment has not been confirmed for this order.",409);
           return json({ order:publicOrder(order) });
         }
-        if (order.status === "paid") return json({ paid: true, receipt });
+        if (hasConfirmedPayment(order)) return json({ paid: true, receipt });
         if (!credentials) throw new OrderError("PayPal credentials are unavailable.",503);
         const paypal = paypalClient(paymentMode,credentials);
         const confirmPayment = async (payment: Parameters<typeof captureReceipt>[0]) => {
-          const captureId = captureReceipt(payment,order);
-          if (payment.id !== order.paypalOrderId) throw new OrderError("Payment session does not match this checkout.",409);
-          await db.send(new UpdateItemCommand({ TableName:process.env.ORDER_TABLE, Key:{id:{S:order.id}}, UpdateExpression:"SET #status = :paid, paypalCaptureId = :capture, updatedAt = :now", ConditionExpression:"paypalOrderId = :paypal AND (#status = :pending OR #status = :paid)", ExpressionAttributeNames:{"#status":"status"}, ExpressionAttributeValues:{":paid":{S:"paid"},":pending":{S:"pending"},":capture":{S:captureId},":paypal":{S:order.paypalOrderId!},":now":{S:new Date().toISOString()}} }));
-          return json({ paid:true, receipt:{...receipt,status:"paid"} });
+          const confirmed = await completePaidOrder(payment, order, {
+            create: async paidOrder => {
+              const Item = Object.fromEntries(Object.entries(paidOrder).map(([key, value]) => [key, typeof value === "number" ? { N: String(value) } : typeof value === "boolean" ? { BOOL: value } : { S: value }]));
+              try {
+                await db.send(new PutItemCommand({ TableName: process.env.ORDER_TABLE, Item,
+                  ConditionExpression: "attribute_not_exists(id) OR (#status = :pending AND attribute_not_exists(paypalCaptureId))",
+                  ExpressionAttributeNames: { "#status": "status" }, ExpressionAttributeValues: { ":pending": { S: "pending" } } }));
+                return true;
+              } catch (error) {
+                if (error instanceof Error && error.name === "ConditionalCheckFailedException") return false;
+                throw error;
+              }
+            },
+            get: async id => await record(process.env.ORDER_TABLE, id) as OrderRecord | null,
+          });
+          return json({ paid:true, receipt:{...receipt,status:confirmed.status} });
         };
         if (path === "/paypal/create") {
           if (order.paypalOrderId) {
@@ -255,7 +286,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
           if (order.total <= 0) throw new OrderError("PayPal requires a positive order total.");
           const created = await paypal.create(order);
           if (typeof created.id !== "string" || !/^[A-Z0-9]{1,64}$/.test(created.id)) throw new Error("Invalid PayPal order response");
-          await db.send(new UpdateItemCommand({ TableName:process.env.ORDER_TABLE, Key:{id:{S:order.id}}, UpdateExpression:"SET paypalOrderId = :paypal", ConditionExpression:"attribute_exists(id) AND (attribute_not_exists(paypalOrderId) OR paypalOrderId = :paypal)", ExpressionAttributeValues:{":paypal":{S:created.id}} }));
+          await db.send(new UpdateItemCommand({ TableName:paymentTable, Key:{id:{S:order.id}}, UpdateExpression:"SET paypalOrderId = :paypal", ConditionExpression:"attribute_exists(id) AND (attribute_not_exists(paypalOrderId) OR paypalOrderId = :paypal)", ExpressionAttributeValues:{":paypal":{S:created.id}} }));
           return json({ orderID:created.id });
         }
         if (typeof input.orderID !== "string" || !/^[A-Z0-9]{1,64}$/.test(input.orderID) || order.paypalOrderId !== input.orderID) throw new OrderError("Payment session does not match this checkout.",409);
@@ -281,7 +312,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
         const token = event.queryStringParameters?.nextToken;
         if (token) { try { const parsed = JSON.parse(Buffer.from(token, "base64url").toString()); if (token.length > 1024 || typeof parsed.id?.S !== "string" || Object.keys(parsed).length !== 1) throw new Error(); cursor = { id: { S: parsed.id.S } }; } catch { return json({ error: "Invalid order page." }, 400); } }
         const result = await db.send(new ScanCommand({ TableName: process.env.ORDER_TABLE, Limit: 100, ExclusiveStartKey: cursor, ConsistentRead: true }));
-        return json({ orders: (result.Items ?? []).map(adminOrder), nextToken: result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url") : null });
+        return json({ orders: (result.Items ?? []).filter(item => Boolean(item.paypalCaptureId?.S)).map(adminOrder), nextToken: result.LastEvaluatedKey ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64url") : null });
       }
       let update;
       try { update = orderUpdate(body(event)); } catch (error) { return json({ error: (error as Error).message }, 400); }

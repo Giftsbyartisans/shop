@@ -66,7 +66,8 @@ export async function listListings(admin = false): Promise<Listing[]> {
     );
     nextToken = result.nextToken;
   } while (nextToken);
-  const published = items.filter(item => item.published);
+  const current = items.filter(item => !item.image.startsWith("/demo/"));
+  const published = current.filter(item => item.published);
   if (published.length) {
     const numbered = await catalogWithNumbers(published, async () => {
       const response = await fetch(backendApiUrl('/storefront'), { cache: 'no-store', signal: AbortSignal.timeout(5000) });
@@ -74,9 +75,9 @@ export async function listListings(admin = false): Promise<Listing[]> {
       return parsePublicCatalog((await response.json()).listings);
     });
     const numbers = new Map(numbered.map(item => [item.id, item.publicId]));
-    for (const item of items) item.publicId = numbers.get(item.id);
+    for (const item of current) item.publicId = numbers.get(item.id);
   }
-  return items;
+  return current;
 }
 async function publishPublicCatalog() {
   const listings = await listListings();

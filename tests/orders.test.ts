@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { foundOrderDetails, ownedOrderDetails, orderOwners, placeOrder, type OrderRecord, type OrderStore } from "../amplify/functions/shop-api/orders";
+import { foundOrderDetails, ownedOrderDetails, orderOwners, hasConfirmedPayment, preparePaymentAttempt, type OrderRecord, type OrderStore } from "../amplify/functions/shop-api/orders";
 import { defaultContent } from "../src/lib/content";
 import type { Listing } from "../src/lib/catalog";
 const user = { sub: "customer-sub", username: "customer" };
@@ -13,9 +13,9 @@ function setup() {
     create: async order => { if (records.has(order.id)) return false; records.set(order.id, order); return true; } };
   return { store, records, address };
 }
-test("places an unpaid owned order with server prices and an address snapshot", async () => {
+test("prepares a private payment attempt with server prices and an address snapshot", async () => {
   const { store, records, address } = setup();
-  const receipt = await placeOrder(input, user, store);
+  const receipt = await preparePaymentAttempt(input, user, store);
   assert.equal(receipt.isSample, true); assert.equal(receipt.status, "pending"); assert.equal(receipt.total, 16);
   const order = records.get(receipt.id)!;
   assert.equal(order.owner, "customer-sub::customer");
@@ -25,41 +25,41 @@ test("places an unpaid owned order with server prices and an address snapshot", 
 });
 test("retries and concurrent submissions create only one order", async () => {
   const { store, records } = setup();
-  const [first, second] = await Promise.all([placeOrder(input, user, store), placeOrder(input, user, store)]);
+  const [first, second] = await Promise.all([preparePaymentAttempt(input, user, store), preparePaymentAttempt(input, user, store)]);
   assert.equal(first.id, second.id); assert.equal(records.size, 1);
-  assert.deepEqual(await placeOrder(input, user, store), first);
-  await assert.rejects(placeOrder({ ...input, expectedTotal: 17 }, user, store), /request has changed/);
+  assert.deepEqual(await preparePaymentAttempt(input, user, store), first);
+  await assert.rejects(preparePaymentAttempt({ ...input, expectedTotal: 17 }, user, store), /request has changed/);
 });
 test("rejects foreign addresses and changed prices before writing", async () => {
   const { store, records, address } = setup();
   address.owner = "different-customer";
-  await assert.rejects(placeOrder(input, user, store), /saved to your account/);
+  await assert.rejects(preparePaymentAttempt(input, user, store), /saved to your account/);
   address.owner = "customer-sub::customer";
-  await assert.rejects(placeOrder({ ...input, expectedTotal: 1 }, user, store), /Prices changed/);
+  await assert.rejects(preparePaymentAttempt({ ...input, expectedTotal: 1 }, user, store), /Prices changed/);
   assert.equal(records.size, 0);
 });
 test("rejects empty carts and duplicate cart lines", async () => {
   const { store } = setup();
-  await assert.rejects(placeOrder({ ...input, items: [] }, user, store));
-  await assert.rejects(placeOrder({ ...input, items: [input.items[0], input.items[0]] }, user, store), /Duplicate/);
+  await assert.rejects(preparePaymentAttempt({ ...input, items: [] }, user, store));
+  await assert.rejects(preparePaymentAttempt({ ...input, items: [input.items[0], input.items[0]] }, user, store), /Duplicate/);
 });
 
 test("disabled ordering blocks new orders but allows a confirmed order retry", async () => {
   const { store, records } = setup();
-  const receipt = await placeOrder(input, user, store);
+  const receipt = await preparePaymentAttempt(input, user, store);
   const catalog = store.catalog;
   store.catalog = async ids => {
     const result = await catalog(ids);
     return { ...result, content: { ...result.content, buyNowEnabled: false } };
   };
-  await assert.rejects(placeOrder({ ...input, requestId: "b7420300-90a4-4eea-a443-fbc8b20b11dd" }, user, store), /ordering is currently unavailable/);
-  assert.deepEqual(await placeOrder(input, user, store), receipt);
+  await assert.rejects(preparePaymentAttempt({ ...input, requestId: "b7420300-90a4-4eea-a443-fbc8b20b11dd" }, user, store), /ordering is currently unavailable/);
+  assert.deepEqual(await preparePaymentAttempt(input, user, store), receipt);
   assert.equal(records.size, 1);
 });
 
 test("sample checkout cannot mark an order paid or remove its sample marker", async () => {
   const { store, records } = setup();
-  const receipt = await placeOrder({ ...input, isSample: false, status: "paid" }, user, store);
+  const receipt = await preparePaymentAttempt({ ...input, isSample: false, status: "paid" }, user, store);
   assert.equal(receipt.isSample, true);
   assert.equal(receipt.status, "pending");
   assert.equal(records.get(receipt.id)?.isSample, true);
@@ -82,25 +82,25 @@ test("order detail rejects foreign or missing orders and excludes retry metadata
 test("guest orders are associated with normalized email and preserve delivery details", async () => {
   const { store, records, address } = setup();
   store.address = async () => { throw new Error("Guest must not read account addresses"); };
-  const receipt = await placeOrder({ ...input, addressId: undefined, guestAddress: address }, null, store);
+  const receipt = await preparePaymentAttempt({ ...input, addressId: undefined, guestAddress: address }, null, store);
   const order = records.get(receipt.id)!;
   assert.equal(order.email, "customer@example.com");
   assert.match(order.owner, /^guest:/);
   assert.match(receipt.trackingNumber, /^GBA-[A-F0-9]{32}$/);
   assert.equal(JSON.parse(order.shippingAddress).phone, "1234567890");
-  assert.equal((await placeOrder({ ...input, addressId: undefined, guestAddress: address }, null, store)).id, receipt.id);
+  assert.equal((await preparePaymentAttempt({ ...input, addressId: undefined, guestAddress: address }, null, store)).id, receipt.id);
 });
 test("guest checkout requires email and mobile and refuses prices supplied by the browser", async () => {
   const { store, address, records } = setup();
-  await assert.rejects(placeOrder({ ...input, email: "", guestAddress: address }, null, store), /email/);
-  await assert.rejects(placeOrder({ ...input, guestAddress: { ...address, phone: "" } }, null, store), /required shipping/);
-  await assert.rejects(placeOrder({ ...input, guestAddress: { ...address, phone: "invalid" } }, null, store), /mobile/);
-  await assert.rejects(placeOrder({ ...input, expectedTotal: 1, guestAddress: address }, null, store), /Prices changed/);
+  await assert.rejects(preparePaymentAttempt({ ...input, email: "", guestAddress: address }, null, store), /email/);
+  await assert.rejects(preparePaymentAttempt({ ...input, guestAddress: { ...address, phone: "" } }, null, store), /required shipping/);
+  await assert.rejects(preparePaymentAttempt({ ...input, guestAddress: { ...address, phone: "invalid" } }, null, store), /mobile/);
+  await assert.rejects(preparePaymentAttempt({ ...input, expectedTotal: 1, guestAddress: address }, null, store), /Prices changed/);
   assert.equal(records.size, 0);
 });
 test("finder requires both matching email and the private tracking number", async () => {
   const { store, address, records } = setup();
-  const receipt = await placeOrder({ ...input, guestAddress: address }, null, store);
+  const receipt = await preparePaymentAttempt({ ...input, guestAddress: address }, null, store);
   const order = records.get(receipt.id)!;
   const details = foundOrderDetails(order, " CUSTOMER@EXAMPLE.COM ", receipt.trackingNumber.toLowerCase());
   assert.equal(details.id, order.id); assert.equal("owner" in details, false); assert.equal("requestFingerprint" in details, false);
@@ -117,19 +117,25 @@ test("account usernames cannot claim email-based guest identities", () => {
 });
 test('PayPal orders use a separate retry namespace and are never marked paid on creation', async () => {
   const {store,records}=setup();
-  const sample=await placeOrder(input,user,store);
-  const sandbox=await placeOrder(input,user,store,'sandbox');
-  const live=await placeOrder(input,user,store,'live');
-  assert.equal(new Set([sample.id,sandbox.id,live.id]).size,3);
+  const sandbox=await preparePaymentAttempt(input,user,store,'sandbox');
+  const live=await preparePaymentAttempt(input,user,store,'live');
+  assert.equal(new Set([sandbox.id,live.id]).size,2);
   assert.equal(live.status,'pending');assert.equal(live.isSample,false);assert.equal(sandbox.isSample,true);
   assert.equal(records.get(live.id)!.paymentMethod,'paypal');
   assert.equal(records.get(live.id)!.paypalMode,'live');
-  assert.deepEqual(await placeOrder(input,user,store,'live'),live);
+  assert.deepEqual(await preparePaymentAttempt(input,user,store,'live'),live);
 });
 test('same cart across tabs and request UUIDs creates only one PayPal order',async()=>{
  const {store,records}=setup();const cartId='c7420300-90a4-4eea-a443-fbc8b20b11dd';
- const [first,second]=await Promise.all([placeOrder({...input,cartId},user,store,'sandbox'),placeOrder({...input,cartId,requestId:'b7420300-90a4-4eea-a443-fbc8b20b11dd'},user,store,'sandbox')]);
+ const [first,second]=await Promise.all([preparePaymentAttempt({...input,cartId},user,store,'sandbox'),preparePaymentAttempt({...input,cartId,requestId:'b7420300-90a4-4eea-a443-fbc8b20b11dd'},user,store,'sandbox')]);
  assert.equal(first.id,second.id);assert.equal(records.size,1);assert.equal(records.get(first.id)!.cartId,cartId);
- await assert.rejects(placeOrder({...input,cartId,email:'different@example.com'},user,store,'sandbox'),/request has changed/);
- await assert.rejects(placeOrder({...input,cartId:'invalid'},user,store,'sandbox'),/Invalid cart ID/);
+ await assert.rejects(preparePaymentAttempt({...input,cartId,email:'different@example.com'},user,store,'sandbox'),/request has changed/);
+ await assert.rejects(preparePaymentAttempt({...input,cartId:'invalid'},user,store,'sandbox'),/Invalid cart ID/);
+});
+
+test('unpaid legacy rows are excluded while paid and fulfilled orders remain visible', () => {
+  assert.equal(hasConfirmedPayment(null), false);
+  assert.equal(hasConfirmedPayment({}), false);
+  assert.equal(hasConfirmedPayment({ paypalCaptureId: '' }), false);
+  assert.equal(hasConfirmedPayment({ paypalCaptureId: 'CAPTURE123' }), true);
 });

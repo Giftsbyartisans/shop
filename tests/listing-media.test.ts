@@ -12,7 +12,7 @@ const listing: Listing = {
   description: "Gift",
   category: "Gifts",
   price: 100,
-  image: "/demo/gift-0.svg",
+  image: "https://example.com/product.webp",
   published: false,
 };
 test("saved sale price applies independently of the storewide sale", () => {
@@ -54,7 +54,7 @@ test("catalog imports preserve galleries and optional sale prices", () => {
     JSON.stringify([
       {
         ...listing,
-        images: [listing.image, "/demo/gift-1.svg"],
+        images: [listing.image, "https://example.com/product-2.webp"],
         videos: ["s3:media/video.mp4"],
         salePrice: 50,
       },
@@ -64,4 +64,13 @@ test("catalog imports preserve galleries and optional sale prices", () => {
   assert.equal(item.images?.length, 2);
   assert.equal(item.videos?.length, 1);
   assert.equal(item.salePrice, 50);
+});
+
+test('drafts can start without a photo but published listings require real media', () => {
+  assert.doesNotThrow(() => validateListingMedia({ ...listing, image: '' }));
+  assert.throws(() => validateListingMedia({ ...listing, published: true, image: '' }), /HTTPS/);
+  assert.throws(() => validateListingMedia({ ...listing, image: '/demo/gift-0.svg' }), /HTTPS/);
+  const [draft] = importListings(JSON.stringify([{ title: 'Real product', description: 'Description', price: 10 }]), 'catalog.json');
+  assert.equal(draft.image, '');
+  assert.equal(draft.published, false);
 });

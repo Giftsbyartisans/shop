@@ -58,7 +58,7 @@ export default function ListingGallery({ item }: { item: Listing }) {
             if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) select(active + (dx < 0 ? 1 : -1));
           }}>
           {media[active].type === "image" ? (
-            <ShopImage key={media[active].src} className="demo-detail-image" src={media[active].src} alt={`${item.title} — ${media[active].label}`}
+            <ShopImage key={media[active].src} className="shop-detail-image" src={media[active].src} alt={`${item.title} — ${media[active].label}`}
               loading="eager" fetchPriority="high" sizes="(max-width: 768px) 100vw, 50vw" />
           ) : (
             <ShopVideo key={media[active].src} src={media[active].src} className="product-photo-video" />

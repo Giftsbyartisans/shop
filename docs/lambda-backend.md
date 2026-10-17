@@ -49,34 +49,16 @@ production deployment must run using the Amplify build role or suitably authoriz
 AWS credentials. Until deployed outputs contain `backendApiUrl`, the new frontend
 reports that the Lambda backend must be deployed instead of using the removed routes.
 
-## Orders without online payment
+## Order creation
 
-`POST /orders` requires a valid customer Cognito access token. It accepts cart line
-IDs/quantities/personalization, a saved shipping address ID, a UUID request ID, and
-the displayed expected total. Lambda checks address ownership and reads current
-catalog/settings records. A changed total is rejected for review. The customer order
-is created with `status: pending`; it does not capture payment or mark orders paid.
-Product and shipping-address snapshots are retained with the order.
-
-The conditional order write and user-scoped request ID make retries idempotent.
-Client retry IDs survive a page reload in session storage until cart cleanup
-succeeds. After order creation, the frontend removes only submitted quantities
-from the cart and links to account order history. Customer order records are accessible through AppSync only to admins; customers
-read and create orders through the ownership-checked Lambda endpoints.
-Deploy the updated CustomerOrder fields and Lambda IAM permissions before serving
-the new frontend. Guest shoppers sign in and choose a saved address before ordering.
+Private payment attempts are created through `POST /paypal/create`, which validates cart contents, current prices, and the shipping address before preparing a PayPal payment. Snapshots are stored in a separate PaymentAttempts table. A customer order is inserted with paid status only after a completed capture is verified. Failed and cancelled payments do not create customer orders. Account users read their orders through ownership-checked `GET /orders` and `GET /orders/{id}` endpoints. Guest orders use the verification flow described below. The non-payment order creation endpoint has been removed.
 
 ## Checkout steps
 
 The cart's Buy now button opens `/checkout/address`. Customers sign in, choose a
 saved address or save a new address inline, then use Next to open
 `/checkout/payment?address=<id>`. Both steps show a full item-and-price summary.
-The payment page reserves space for future gateways; Place order calls `/orders`
-and creates a record explicitly marked `isSample: true`, with pending/unpaid status.
-No gateway is invoked. Order confirmation remains visible after cart cleanup and
-links to account order history. Deploy the `isSample` field with the backend before
-serving these pages. The admin toggle grays out Buy now on the cart and Lambda
-continues to reject new orders when disabled.
+The payment page uses PayPal to create and capture orders. Live payments collect real funds; sandbox payments are explicitly marked as test orders. The old non-payment `POST /orders` route has been removed. Order confirmation remains visible after cart cleanup and links to account order history. The admin toggle disables ordering in the frontend and backend.
 
 Order history is loaded through authenticated `GET /orders` in the same Lambda.
 The server filters every page by owner identities derived from the verified Cognito
@@ -90,7 +72,7 @@ account history client; it reports a deployment requirement if the route is abse
 token and checking its stored owner. Foreign and missing orders both return 404.
 Account order cards open `/account/orders/<id>` in a new tab. The summary renders
 archived product/personalization details, the shipping address, recorded price
-breakdown, status, sample marker, and delivery estimate based on order creation.
+breakdown, status, test-payment marker, and delivery estimate based on order creation.
 Missing legacy snapshots are labeled unavailable rather than substituted with
 current catalog details. Deploy the detail route together with the frontend page.
 
@@ -108,7 +90,7 @@ Every new order receives a private random 128-bit tracking number. Footer → Tr
 
 Email users click View full order details to send a six-digit code through SES. `/order-finder/code` stores a salted code hash with a random challenge, ten-minute expiry, and a 60-second resend cooldown in a private DynamoDB table. `/order-finder/verify` atomically counts attempts (maximum five), consumes the challenge once, and returns orders matching the normalized email. TTL removes expired records; expiry is also enforced during verification. Lookup and verification credentials remain in POST bodies. The preview intentionally reveals whether an email has orders; API throttling limits requests.
 
-The default sender is `noreply@giftsbyartisans.com`, authorized through the SES-verified domain identity `giftsbyartisans.com` in the backend region (`us-east-1`). No sender inbox is required for a verified domain. Optional Amplify build variables `ORDER_EMAIL_FROM` and `ORDER_EMAIL_IDENTITY` override the sender and verified identity (domain or email). Lambda grants SendEmail for that identity and restricts the From address to the configured sender. SES sandbox accounts require verified recipients; production SES access is necessary for arbitrary customer addresses. Missing sender configuration produces a clear unavailable message rather than exposing full details. No code is returned to the browser or logged. Deploy the `byEmail` index, verification table, SES permission, and both verification routes with the frontend. Guest address drafts stay in session storage until order creation. Orders remain sample and unpaid.
+The default sender is `noreply@giftsbyartisans.com`, authorized through the SES-verified domain identity `giftsbyartisans.com` in the backend region (`us-east-1`). No sender inbox is required for a verified domain. Optional Amplify build variables `ORDER_EMAIL_FROM` and `ORDER_EMAIL_IDENTITY` override the sender and verified identity (domain or email). Lambda grants SendEmail for that identity and restricts the From address to the configured sender. SES sandbox accounts require verified recipients; production SES access is necessary for arbitrary customer addresses. Missing sender configuration produces a clear unavailable message rather than exposing full details. No code is returned to the browser or logged. Deploy the `byEmail` index, verification table, SES permission, and both verification routes with the frontend. Guest address drafts stay in session storage until order creation. Orders remain pending until PayPal capture confirms payment.
 
 AppSync CustomerOrder access is admin-only. Guest records cannot be claimed through an account username matching their email-derived owner identity; account reads filter out the reserved guest namespace.
 
@@ -119,7 +101,7 @@ verified Admins-group access tokens. Cards group orders by date, show archived
 items, prices and shipping/contact details, and support selection and bulk
 completion. New includes new, buyer-discussion and in-progress orders; Completed
 contains only completed fulfillment records. Fulfillment progress is independent
-of payment status. Completing a sample order does not collect or record payment.
+of payment status. Fulfillment updates do not collect or change payment.
 `PUT /admin/orders/{id}` validates progress and an optional ship-by calendar date,
 conditionally updates existing orders, and returns the updated record. Reopening
 removes the completion timestamp. Ship-by dates are explicitly set by admins;
@@ -129,7 +111,7 @@ completedAt fields together with the admin interface.
 
 ## PayPal checkout
 
-The payment step now renders PayPal's JavaScript SDK button instead of the sample
+The payment step now renders PayPal's JavaScript SDK button instead of the former
 Place order action. Enter sandbox/live REST Client IDs and Secrets under Admin →
 Settings → PayPal. Credentials remain encrypted in PaymentSettings and are decrypted
 only in Lambda. `GET /paypal/config` returns the active public Client ID, mode and
@@ -139,7 +121,7 @@ frontend requests use sandbox mode through the existing mode header.
 `POST /paypal/create` validates the checkout contact/address and authoritative
 catalog prices using the same order service, then persists an unpaid snapshot
 before creating a PayPal Orders v2 CAPTURE order. PayPal retry namespaces separate
-sample, sandbox and live orders. The PayPal order ID is bound to that snapshot;
+sandbox and live orders. The PayPal order ID is bound to that snapshot;
 create/capture requests use stable PayPal-Request-Id values. Cart totals and IDs
 supplied by a browser cannot mark an order paid. Both create and capture require
 the original checkout request UUID, matching payload and optional verified customer
@@ -182,7 +164,7 @@ version. A changed checkout payload for an existing payment snapshot is rejected
 
 Cart and checkout screens call `POST /cart/status` with the current UUID. Lambda
 returns only a placed boolean, never order/customer details. A paid PayPal order
-(or a previously submitted sample order) marks that cart placed. Unpaid PayPal
+marks that cart placed. Unpaid PayPal
 attempts remain resumable. Checks must succeed before checkout proceeds; placed
 carts redirect home even if stale purchased items remain in browser storage.
 Empty carts also redirect home. The active confirmed-payment navigation retains

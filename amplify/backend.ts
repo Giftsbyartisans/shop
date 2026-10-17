@@ -43,6 +43,11 @@ const media = new Distribution(stack, 'StorefrontMedia', {
 backend.addOutput({ custom: { mediaCdnUrl: `https://${media.distributionDomainName}` } });
 
 const apiLambda = backend.shopApi.resources.lambda;
+const paymentAttempts = new Table(backend.createStack('payment-attempts'), 'PaymentAttempts', {
+  partitionKey: { name: 'id', type: AttributeType.STRING }, billingMode: BillingMode.PAY_PER_REQUEST,
+});
+paymentAttempts.grantReadWriteData(apiLambda);
+backend.shopApi.addEnvironment('PAYMENT_ATTEMPTS_TABLE', paymentAttempts.tableName);
 const listingNumbers = new Table(backend.createStack('listing-numbers'), 'ListingNumbers', {
   partitionKey: { name: 'id', type: AttributeType.STRING }, billingMode: BillingMode.PAY_PER_REQUEST,
 });
@@ -61,6 +66,7 @@ apiLambda.addToRolePolicy(new PolicyStatement({ actions: ['ses:SendEmail'], reso
   Stack.of(apiLambda).formatArn({ service: 'ses', resource: 'identity', resourceName: orderEmailIdentity }),
 ], conditions: { StringEquals: { 'ses:FromAddress': orderEmailFrom } } }));
 backend.shopApi.addEnvironment('USER_POOL_ID', backend.auth.resources.userPool.userPoolId);
+apiLambda.addToRolePolicy(new PolicyStatement({ actions: ['cognito-idp:ListUsers'], resources: [backend.auth.resources.userPool.userPoolArn] }));
 backend.shopApi.addEnvironment('USER_POOL_CLIENT_ID', backend.auth.resources.userPoolClient.userPoolClientId);
 backend.shopApi.addEnvironment('PAYPAL_MODE', process.env.AWS_BRANCH === 'main' ? 'live' : 'sandbox');
 backend.shopApi.addEnvironment('PAYPAL_ENCRYPTION_KEY', process.env.PAYPAL_ENCRYPTION_KEY ?? '');
@@ -100,12 +106,13 @@ httpApi.addRoutes({ path: '/paypal/capture', methods: [HttpMethod.POST], integra
 httpApi.addRoutes({ path: '/admin/paypal', methods: [HttpMethod.GET, HttpMethod.PUT], integration });
 httpApi.addRoutes({ path: '/import-image', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/favicon', methods: [HttpMethod.GET], integration });
+httpApi.addRoutes({ path: '/checkout/email', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/storefront', methods: [HttpMethod.GET], integration });
 httpApi.addRoutes({ path: '/order-finder/code', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/order-finder/verify', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/order-finder', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/orders/{id}', methods: [HttpMethod.GET], integration });
-httpApi.addRoutes({ path: '/orders', methods: [HttpMethod.GET, HttpMethod.POST], integration });
+httpApi.addRoutes({ path: '/orders', methods: [HttpMethod.GET], integration });
 httpApi.addRoutes({ path: '/cart/status', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/cart', methods: [HttpMethod.POST], integration });
 // Keep the prior path for already-loaded frontend clients during deployment.

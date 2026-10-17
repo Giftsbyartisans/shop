@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { resolvePersonalization } from "../src/lib/personalization";
 import { defaultContent, validateContent } from "../src/lib/content";
 import type { Listing } from "../src/lib/catalog";
-const item: Listing = { id: "a", title: "Gift", description: "Gift", price: 20, category: "Gifts", image: "/demo/gift-0.svg", published: true };
+const item: Listing = { id: "a", title: "Gift", description: "Gift", price: 20, category: "Gifts", image: "https://example.com/product.webp", published: true };
 const content = { ...defaultContent, defaultPersonalizationId: "free", personalizations: [{ id: "free", name: "Free engraving", heading: "Your message", text: "Enter engraving text" }, { id: "paid", name: "Premium", heading: "Premium engraving", text: "Enter text", price: 5 }] };
 test("older settings without a personalization library remain usable", () => {
   const legacy = { ...content, personalizations: undefined } as unknown as typeof content;

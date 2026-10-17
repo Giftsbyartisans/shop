@@ -81,8 +81,8 @@ export function importListings(text: string, filename: string): Listing[] {
     const id = suppliedId || crypto.randomUUID();
     if (ids.has(id)) throw new Error(`Duplicate listing ID: ${id}`);
     ids.add(id);
-    const image = String(record.image ?? record.image1 ?? "/demo/gift-0.svg");
-    if (!image.startsWith("/demo/") && !image.startsWith("s3:media/")) {
+    const image = String(record.image ?? record.image1 ?? "");
+    if (image && !image.startsWith("s3:media/")) {
       try {
         if (new URL(image).protocol !== "https:") throw new Error();
       } catch {

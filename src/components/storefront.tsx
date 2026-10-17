@@ -44,7 +44,7 @@ function Card({ item, content, showcase = false, eager = false }: { item: Listin
   const photo = selected && photos.includes(selected) ? selected : photos[0];
   return (
     <article className={`listing-card${showcase ? " homepage-listing" : ""}`}>
-      <Link className="listing-media demo-media" href={listingPath(item)}>
+      <Link className="listing-media shop-media" href={listingPath(item)}>
         <ShopImage src={photo} alt={item.title} loading={eager ? "eager" : "lazy"}
           sizes={showcase ? "(max-width: 600px) 75vw, (max-width: 850px) 46vw, (max-width: 1100px) 30vw, 19vw" : "(max-width: 900px) 44vw, (max-width: 1440px) 22vw, 320px"} />
         {Boolean(item.videos?.length) && <span className="product-card-video-tag">
@@ -117,11 +117,11 @@ function Carousel({
   };
   const carouselEnabled = Children.count(children) > 5;
   return (
-    <div className="demo-carousel" role="region" aria-label={label}>
-      <div className={`demo-track${carouselEnabled ? "" : " static-product-grid"}`} ref={track}>
+    <div className="shop-carousel" role="region" aria-label={label}>
+      <div className={`shop-track${carouselEnabled ? "" : " static-product-grid"}`} ref={track}>
         {children}
       </div>
-      {carouselEnabled && <div className="demo-controls">
+      {carouselEnabled && <div className="shop-controls">
         <button
           className="homepage-carousel-arrow previous"
           type="button"
@@ -261,7 +261,7 @@ export default function Storefront({
               {settingsStatus === "loading" ? <span className="sr-only">Loading banner</span> : <p>Unable to load the banner. Please refresh the page.</p>}
             </div>
           )}
-          <section id="categories" className="collection">
+          {content.categories.length > 0 && <section id="categories" className="collection">
             <p className="eyebrow">SOMETHING FOR EVERY OCCASION</p>
             <h2>Shop by category</h2>
             <Carousel label="categories">
@@ -276,9 +276,9 @@ export default function Storefront({
                 </Link>
               ))}
             </Carousel>
-          </section>
+          </section>}
           <HomepageBenefits />
-          <section id="best-sellers" className="collection">
+          {visible.some(item => content.bestSellerIds.includes(item.id)) && <section id="best-sellers" className="collection">
             <div className="section-top">
               <div>
                 <p className="eyebrow">THOUGHTFUL FAVORITES</p>
@@ -293,37 +293,17 @@ export default function Storefront({
                   <Card content={content} item={i} key={i.id} showcase />
                 ))}
             </Carousel>
-          </section>
+          </section>}
           <div className="homepage-payment-trust"><PaymentTrust etsyUrl={content.etsy} pinterestUrl={content.pinterest} /></div>
-          <section className="testimonials collection">
+          {content.reviews.length > 0 && <section className="testimonials collection">
             <p className="eyebrow">A LITTLE KINDNESS GOES A LONG WAY</p>
             <h2>Thoughtful products. Beautiful moments.</h2>
             <p className="muted">
               Personal touches, handcrafted details, and something for every
               occasion.
             </p>
-            {content.reviews.length ? (
-              <TestimonialCarousel reviews={content.reviews} intervalSeconds={content.testimonialIntervalSeconds} />
-            ) : (
-              <div className="demo-values">
-                <div>
-                  <span>♡</span>
-                  <h3>Made personal</h3>
-                  <p>Small details that mean the world.</p>
-                </div>
-                <div>
-                  <span>✧</span>
-                  <h3>Inspired by artisans</h3>
-                  <p>Discover the beauty in thoughtful craft.</p>
-                </div>
-                <div>
-                  <span>◇</span>
-                  <h3>For every moment</h3>
-                  <p>Celebrate the everyday and the extraordinary.</p>
-                </div>
-              </div>
-            )}
-          </section>
+            <TestimonialCarousel reviews={content.reviews} intervalSeconds={content.testimonialIntervalSeconds} />
+          </section>}
         </main>
       ) : page === "collection" ? (
         <main className={`shop${categoryOnly || bestSellersOnly ? ` collection-full-page${categoryOnly ? " collection-category-page" : ""}` : ""}`}>
@@ -604,20 +584,12 @@ function InquiryForm({ kind }: { kind: "contact" | "wholesale" }) {
 function StoreBanner({ content }: { content: ShopContent }) {
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const [index, setIndex] = useState(0);
-  const uploaded = content.banners.filter((b) => b.image.trim());
-  const banners = uploaded.length
-    ? uploaded
-    : [
-        {
-          id: "default",
-          image: "/demo/gift-3.svg",
-          alt: "A gift wrapped with a ribbon",
-        },
-      ];
+  const banners = content.banners.filter(banner => banner.image.trim());
   const hasText = Boolean(
     content.bannerTitle.trim() || content.bannerText.trim(),
   );
   const multiple = banners.length > 1;
+  if (!banners.length) return null;
   const active = index % banners.length;
   const selected = banners[active];
   return (
