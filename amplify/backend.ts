@@ -94,7 +94,7 @@ apiLambda.addToRolePolicy(new PolicyStatement({
 }));
 const httpApi = new HttpApi(backend.createStack('shop-http-api'), 'ShopHttpApi', {
   corsPreflight: {
-    allowOrigins: ['*'], allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.PUT],
+    allowOrigins: ['*'], allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.PUT, CorsHttpMethod.DELETE],
     allowHeaders: ['Content-Type', 'Authorization', 'X-PayPal-Mode'], maxAge: Duration.hours(1),
   },
 });
