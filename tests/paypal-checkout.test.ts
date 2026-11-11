@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { captureReceipt, paypalClient, type PayPalOrder } from '../amplify/functions/shop-api/paypal-checkout';
+import { captureReceipt, paypalClient, PayPalRequestError, type PayPalOrder } from '../amplify/functions/shop-api/paypal-checkout';
 import type { OrderRecord } from '../amplify/functions/shop-api/orders';
 const order = {id:'server-order',orderNumber:'GBA-SERVER',total:42.50,currency:'USD'} as OrderRecord;
 const completed = ():PayPalOrder => ({id:'PAYPAL123',status:'COMPLETED',purchase_units:[{custom_id:order.id,payments:{captures:[{id:'CAPTURE123',status:'COMPLETED',amount:{currency_code:'USD',value:'42.50'}}]}}]});
@@ -53,4 +53,17 @@ test('payment retries preserve the existing order and fulfillment data', async (
   const saved = { ...attempt, status: 'paid', paypalCaptureId: 'CAPTURE123', createdAt: '2026-10-01T00:00:00Z', fulfillmentProgress: 'completed' } as OrderRecord;
   assert.equal(await completePaidOrder(completed(), attempt, { create: async () => false, get: async () => saved }), saved);
   await assert.rejects(completePaidOrder(completed(), attempt, { create: async () => false, get: async () => ({ ...saved, paypalCaptureId: 'DIFFERENT' }) }));
+});
+
+test('PayPal failures preserve safe diagnostic codes without exposing raw response data', async () => {
+  const transport = (async (url) => Response.json(String(url).endsWith('/token') ? { access_token: 'private-token' } : { details: [{ issue: 'PAYEE_ACCOUNT_RESTRICTED', description: 'private detail' }], debug_id: 'abc123', message: 'private response' }, { status: String(url).endsWith('/token') ? 200 : 422 })) as typeof fetch;
+  await assert.rejects(paypalClient('sandbox', { clientId: 'client', secret: 'secret' }, transport).create(order), error => {
+    assert.ok(error instanceof PayPalRequestError);
+    assert.equal(error.issue, 'PAYEE_ACCOUNT_RESTRICTED');
+    assert.equal(error.debugId, 'abc123');
+    assert.equal(error.status, 502);
+    assert.match(error.message, /account is restricted/);
+    assert.doesNotMatch(JSON.stringify(error), /private|secret/);
+    return true;
+  });
 });

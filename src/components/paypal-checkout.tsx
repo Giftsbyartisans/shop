@@ -1,4 +1,5 @@
 "use client";
+import { frontendPayPalMode } from "@/lib/paypal-mode";
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchTokenSession } from "@/lib/auth-session";
@@ -29,7 +30,7 @@ export default function PayPalCheckout({items,total,addressId,email,guestAddress
   const latest = useRef({items,total,addressId,email,guestAddress,cartId}); latest.current = {items,total,addressId,email,guestAddress,cartId};
   const [error,setError] = useState(''), [loading,setLoading] = useState(true), [busy,setBusy] = useState(false), [mode,setMode] = useState('');
   const pending = useRef<Record<string,unknown> | null>(null), finished = useRef(false);
-  const frontendMode = process.env.NODE_ENV === 'production' ? 'live' : 'sandbox';
+  const frontendMode = frontendPayPalMode();
   async function api(path:string,body?:unknown) {
     const session = await fetchTokenSession(); const token = session.tokens?.accessToken.toString();
     const response = await fetch(backendApiUrl(path),{method:body ? 'POST':'GET',headers:{'Content-Type':'application/json','X-PayPal-Mode':frontendMode,...(token ? {Authorization:`Bearer ${token}`} : {})},...(body ? {body:JSON.stringify(body)} : {}),signal:AbortSignal.timeout(45000)});

@@ -21,6 +21,7 @@ export default function ManagerIcon({ name }: { name: string }) {
     Sale: "m5 20 14-16M6 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6M18 14a3 3 0 1 0 0 6 3 3 0 0 0 0-6",
     Testimonials: "M3 4h18v14H8l-5 4V4z",
     Messages: "M3 4h18v14H8l-5 4V4z",
+    Blogs: "M4 3h16v18H4zM8 7h8M8 11h8M8 15h5",
     "Social & footer":
       "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18",
     "Pages & policies": "M5 3h9l5 5v13H5V3zM14 3v6h5M8 13h8M8 17h6",

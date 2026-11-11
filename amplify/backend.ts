@@ -51,6 +51,11 @@ backend.shopApi.addEnvironment('PAYMENT_ATTEMPTS_TABLE', paymentAttempts.tableNa
 const listingNumbers = new Table(backend.createStack('listing-numbers'), 'ListingNumbers', {
   partitionKey: { name: 'id', type: AttributeType.STRING }, billingMode: BillingMode.PAY_PER_REQUEST,
 });
+const blogs = new Table(backend.createStack('blogs'), 'Blogs', {
+  partitionKey: { name: 'id', type: AttributeType.STRING }, billingMode: BillingMode.PAY_PER_REQUEST,
+});
+blogs.grantReadWriteData(apiLambda);
+backend.shopApi.addEnvironment('BLOG_TABLE', blogs.tableName);
 listingNumbers.grantReadWriteData(apiLambda);
 backend.shopApi.addEnvironment('LISTING_NUMBERS_TABLE', listingNumbers.tableName);
 const verificationTable = new Table(backend.createStack('order-verification'), 'OrderVerification', {
@@ -104,6 +109,10 @@ httpApi.addRoutes({ path: '/paypal/config', methods: [HttpMethod.GET], integrati
 httpApi.addRoutes({ path: '/paypal/create', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/paypal/capture', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/admin/paypal', methods: [HttpMethod.GET, HttpMethod.PUT], integration });
+httpApi.addRoutes({ path: '/admin/blogs', methods: [HttpMethod.GET], integration });
+httpApi.addRoutes({ path: '/admin/blogs/{id}', methods: [HttpMethod.PUT, HttpMethod.DELETE], integration });
+httpApi.addRoutes({ path: '/blogs', methods: [HttpMethod.GET], integration });
+httpApi.addRoutes({ path: '/blogs/{slug}', methods: [HttpMethod.GET], integration });
 httpApi.addRoutes({ path: '/import-image', methods: [HttpMethod.POST], integration });
 httpApi.addRoutes({ path: '/favicon', methods: [HttpMethod.GET], integration });
 httpApi.addRoutes({ path: '/checkout/email', methods: [HttpMethod.POST], integration });

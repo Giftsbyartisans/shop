@@ -5,6 +5,13 @@ import { defaultContent } from '../src/lib/content';
 import type { Listing } from '../src/lib/catalog';
 const item: Listing = { id: 'stable-internal-id', publicId: '123456', title: 'Copper & brass bottle', description: '<p>Made by hand.</p>\nNew bottle.', price: 40, image: 's3:media/bottle/1600.webp', category: 'Home & living', published: true };
 
+test('feed descriptions remove emoji sequences while preserving product details', () => {
+  const description = '<p>✨ Handmade 👩🏽‍🎨 bottle 🇮🇳</p> Capacity: 500 ml. 1️⃣ Gift ❤️ © 2026';
+  const feed = buildGoogleMerchantFeed('https://example.com', [{ ...item, description }], defaultContent, 'https://cdn.example.com');
+  assert.ok(feed.includes('<g:description>Handmade bottle Capacity: 500 ml. Gift 2026</g:description>'));
+  assert.throws(() => buildGoogleMerchantFeed('https://example.com', [{ ...item, description: '✨ 🎁' }], defaultContent, 'https://cdn.example.com'), /description/);
+});
+
 test('feed exports published products with stable IDs, matching URLs, prices, and public images', () => {
   const feed = buildGoogleMerchantFeed('https://giftsbyartisans.com/', [item, item, { ...item, id: 'draft', published: false }], defaultContent, 'https://cdn.example.com');
   assert.equal(feed.match(/<item>/g)?.length, 1);

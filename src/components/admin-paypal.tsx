@@ -1,4 +1,5 @@
 "use client";
+import { frontendPayPalMode } from "@/lib/paypal-mode";
 import { useEffect, useState } from "react";
 import { backendApiUrl } from "@/lib/backend-api";
 import { fetchTokenSession } from "@/lib/auth-session";
@@ -9,7 +10,7 @@ async function requestSettings(body?: unknown): Promise<PayPalSettingsSummary> {
   const token = session.tokens?.accessToken.toString();
   if (!token) throw new Error("Admin sign-in required.");
   const response = await fetch(backendApiUrl("/admin/paypal"), { method: body ? "PUT" : "GET", cache: "no-store",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-PayPal-Mode": process.env.NODE_ENV === "production" ? "live" : "sandbox" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-PayPal-Mode": frontendPayPalMode() },
     ...(body ? { body: JSON.stringify(body) } : {}) });
   if (!response.headers.get("content-type")?.includes("application/json")) {
     if (response.status === 404) throw new Error("The PayPal settings API was not found (404). Restart the development server or deploy the updated website.");

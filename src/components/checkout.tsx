@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import CheckoutLoading from "./checkout-loading";
 import { checkoutRedirect, pendingOrderConfirmation } from "@/lib/checkout-navigation";
 import { fetchUserAttributes } from "aws-amplify/auth";
 import { checkoutEmail, checkoutAddress } from "@/lib/checkout-contact";
@@ -121,9 +122,9 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
   useEffect(() => { if (redirectTo) router.replace(redirectTo); }, [redirectTo, router]);
   const heading = <h1>Checkout</h1>;
   if (redirectTo) return <main className="shop checkout-page">{heading}<p role="status">Redirecting…</p></main>;
-  if (!ready || cart.loading) return <main className="shop checkout-page">{heading}<p role="status">Loading checkout…</p></main>;
+  if (!ready || cart.loading) return <CheckoutLoading />;
   if (cart.error) return <main className="shop checkout-page">{heading}<p role="alert">{cart.error}</p><Link href="/cart">Return to cart</Link></main>;
-  if (placement.checking) return <main className="shop checkout-page">{heading}<p role="status">Checking cart status…</p></main>;
+  if (placement.checking) return <CheckoutLoading />;
   if (placement.error) return <main className="shop checkout-page">{heading}<p role="alert">{placement.error}</p><button type="button" onClick={placement.retry}>Try again</button></main>;
   if (!content.buyNowEnabled) return <main className="shop checkout-page">{heading}<p>Online ordering is currently unavailable.</p><Link href="/cart">Return to cart</Link></main>;
   if (!cart.items.length) return <main className="shop checkout-page">{heading}<p role="status">Returning to home…</p></main>;
@@ -163,7 +164,7 @@ export default function Checkout({ step, listings, content, ready }: { step: "ad
       return <article className="checkout-summary-item" key={key}>{item && <ShopImage src={item.images?.[0] || item.image} alt={item.title} sizes="64px" />}<div><h3>{item?.title || "Unavailable product"}</h3><p>Quantity: {entry.quantity}</p>{entry.personalization && <p className="checkout-personalization">Personalization: {entry.personalization}</p>}<p>{line ? formatPrice(line.total) : "—"}</p></div></article>;
     })}</div>
       {totals ? <><p className="shopping-summary-row"><span>MSRP</span><span>{formatPrice(totals.subtotal)}</span></p><p className="shopping-summary-row"><span>Discount</span><span>{totals.discount > 0 ? "−" : ""}{formatPrice(totals.discount)}</span></p><p className="shopping-summary-row"><span>Shipping charges</span><span>{totals.shipping === 0 ? "Free" : formatPrice(totals.shipping)}</span></p><p className="shopping-summary-row shopping-summary-total"><span>Total</span><span>{formatPrice(totals.total)}</span></p></> : <p role={priceError ? "alert" : "status"}>{priceError || "Calculating totals…"}</p>}
-      {step === "address" ? <div className="checkout-next"><Link href="/cart">Back to cart</Link><button className="primary" type="button" disabled={loading || cart.saving || !selected || !validEmail || !canUseEmail || adding || saving || !totals} onClick={nextStep}>Next →</button></div> : <>{totals && selected && !cart.saving && !loading && contactReadyKey === contactKey && validEmail && canUseEmail && validAddress && <PayPalCheckout cartId={cart.cartId!} key={JSON.stringify({ cartId:cart.cartId, items: cart.items, addressId, total: totals.total, email, selected })} items={cart.items} addressId={addressId} total={totals.total} email={email} guestAddress={cart.signedIn ? undefined : checkoutAddress(selected)} enabled={content.buyNowEnabled} />}<Link href="/checkout/address">← Back to shipping address</Link></>}
+      {step === "address" ? <div className="checkout-next"><Link href="/cart">Back to cart</Link><button className="primary" type="button" disabled={loading || cart.saving || !selected || !validEmail || !canUseEmail || adding || saving || !totals} onClick={nextStep}>Next →</button></div> : <>{totals && selected && !cart.saving && !loading && contactReadyKey === contactKey && validEmail && canUseEmail && validAddress && <PayPalCheckout cartId={cart.cartId!} key={JSON.stringify({ cartId:cart.cartId, items: cart.items, addressId, total: totals.total, email, selected })} items={cart.items} addressId={addressId} total={totals.total} email={email} guestAddress={cart.signedIn ? undefined : checkoutAddress(selected)} enabled={content.buyNowEnabled} />}<Link className="checkout-back-to-address" href="/checkout/address">← Back to shipping address</Link></>}
     </aside>
   </div></main>;
 }

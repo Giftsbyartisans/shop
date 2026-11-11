@@ -6,6 +6,8 @@ import { listingPath } from './listing-url';
 
 const xml = (value: string) => value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 const text = (value: string, limit: number) => value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, limit);
+// Match complete emoji sequences without removing ordinary digits or punctuation.
+const withoutEmoji = (value: string) => value.replace(/[#*0-9]\uFE0F?\u20E3|\p{Regional_Indicator}{1,2}|\p{Extended_Pictographic}(?:[\uFE0E\uFE0F]|\p{Emoji_Modifier}|[\u{E0020}-\u{E007F}])*(?:\u200D\p{Extended_Pictographic}(?:[\uFE0E\uFE0F]|\p{Emoji_Modifier}|[\u{E0020}-\u{E007F}])*)*|\p{Emoji_Modifier}/gu, '');
 function imageLink(source: string, cdn: string) {
   const value = cdnImageUrl(source, cdn) ?? source;
   try { const url = new URL(value); return url.protocol === 'https:' ? url.href : undefined; }
@@ -16,7 +18,7 @@ export function buildGoogleMerchantFeed(origin: string, listings: Listing[], con
   const base = new URL(origin).origin;
   const products = [...new Map(listings.filter(item => item.published).map(item => [item.id, item])).values()];
   const items = products.map(item => {
-    const title = text(item.title, 150), description = text(item.description, 5000);
+    const title = text(item.title, 150), description = text(withoutEmoji(item.description), 5000);
     const image = imageLink(item.images?.[0] || item.image, cdn);
     const price = listingPrice(item, content.saleEnabled, content.salePercent);
     if (!title || !description || !image || !Number.isFinite(item.price) || item.price <= 0 || !Number.isFinite(price) || price <= 0 || price > item.price) {

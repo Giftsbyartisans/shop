@@ -85,6 +85,7 @@ export function ShopFooter({ content }: { content: ShopContent }) {
           <h3>Explore</h3>
           <Link href="/#categories">Shop by category</Link>
           <Link href="/best-sellers">Best sellers</Link>
+          <Link href="/blog">Stories & inspiration</Link>
           <Link href="/wholesale">Wholesale inquiry</Link>
           <a href="/sitemap.xml">Sitemap</a>
         </div>

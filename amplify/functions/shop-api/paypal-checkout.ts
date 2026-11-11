@@ -1,6 +1,18 @@
 import { createHash } from 'node:crypto';
 import { OrderError, type OrderRecord } from './orders';
 import type { PayPalCredentials, PayPalEnvironment } from '../../../src/lib/paypal-settings';
+export class PayPalRequestError extends OrderError {
+  constructor(public issue: string | undefined, public debugId: string | undefined) {
+    const messages: Record<string, string> = {
+      PAYEE_ACCOUNT_RESTRICTED: 'The shop PayPal account is restricted. Please contact the shop.',
+      PAYEE_ACCOUNT_NOT_VERIFIED: 'The shop PayPal account needs verification. Please contact the shop.',
+      DUPLICATE_INVOICE_ID: 'PayPal already has this invoice. Please contact the shop before retrying.',
+      PERMISSION_DENIED: 'The shop PayPal account cannot process this payment. Please contact the shop.',
+      RESOURCE_NOT_FOUND: 'The PayPal payment session could not be found. Please contact the shop.',
+    };
+    super(messages[issue ?? ''] ?? 'PayPal could not complete this request. Please retry.', 502);
+  }
+}
 export type PayPalOrder = { id?: string; status?: string; purchase_units?: { custom_id?: string; amount?: { currency_code?: string; value?: string }; payments?: { captures?: { id?: string; status?: string; amount?: { currency_code?: string; value?: string } }[] } }[] };
 export function captureReceipt(payment: PayPalOrder, order: Pick<OrderRecord,'id'|'total'|'currency'>) {
   const units = payment.purchase_units;
@@ -21,7 +33,13 @@ export function paypalClient(environment: PayPalEnvironment, credentials: PayPal
     }
     const response = await transport(`${base}${path}`, { method, headers: { Authorization:`Bearer ${accessToken}`, 'Content-Type':'application/json', Prefer:'return=representation', ...(requestId ? {'PayPal-Request-Id': createHash('sha256').update(requestId).digest('hex').slice(0,38)} : {}) }, ...(payload !== undefined ? {body:JSON.stringify(payload)} : {}), signal:AbortSignal.timeout(12000) });
     const result = await response.json();
-    if (!response.ok) throw new OrderError('PayPal could not complete this request. Please retry.',502);
+    if (!response.ok) {
+      const safeCode = (value: unknown, pattern: RegExp) => typeof value === 'string' && pattern.test(value) ? value : undefined;
+      const issue = safeCode(result?.details?.[0]?.issue ?? result?.name, /^[A-Z][A-Z0-9_]{0,99}$/);
+      const debugId = safeCode(result?.debug_id, /^[a-zA-Z0-9-]{1,100}$/);
+      console.error('PayPal request failed', { environment, method, status: response.status, issue, debugId });
+      throw new PayPalRequestError(issue, debugId);
+    }
     return result;
   }
   return { create: (order: OrderRecord) => request('/v2/checkout/orders','POST', { intent:'CAPTURE', purchase_units:[{custom_id:order.id, invoice_id:order.orderNumber, amount:{currency_code:order.currency,value:order.total.toFixed(2)}}], application_context:{shipping_preference:'NO_SHIPPING'} }, `create:${order.id}`),

@@ -23,6 +23,7 @@ import ManagerIcon from "@/components/manager-icon";
 import ListingEditor from "@/components/listing-editor";
 import AdminListings from "@/components/admin-listings";
 import AdminMessages from "@/components/admin-messages";
+import AdminBlogs from "@/components/admin-blogs";
 import { signIn, signOut, confirmSignIn } from "aws-amplify/auth";
 export default function AdminClient() {
   const [items, setItems] = useState<Listing[]>([]),
@@ -421,7 +422,7 @@ export default function AdminClient() {
     "Admin preferences",
   ];
   const nestedSettings = ["Settings", "PayPal", "Sale", "Social & footer", "Pages & policies", "Admin preferences"];
-  const tabs = ["Listings", "Orders", "Messages", ...settingsTabs.filter(name => !nestedSettings.includes(name))];
+  const tabs = ["Listings", "Orders", "Messages", "Blogs", ...settingsTabs.filter(name => !nestedSettings.includes(name))];
   const isSettings = settingsTabs.includes(tab) || tab === "Settings";
   return (
     <main
@@ -563,6 +564,8 @@ export default function AdminClient() {
             </>
           ) : tab === "Messages" ? (
             <AdminMessages messages={inquiries} onRead={readMessage} />
+          ) : tab === "Blogs" ? (
+            <AdminBlogs />
           ) : contentReady ? (
             <AdminSettings
               {...{ tab, content, change, categoryEditing }}

@@ -1,6 +1,6 @@
 import { registeredCheckoutEmail } from "./checkout-email";
 import { listingNumber } from "./listing-numbers";
-import { paypalClient, captureReceipt, completePaidOrder } from "./paypal-checkout";
+import { paypalClient, captureReceipt, completePaidOrder, PayPalRequestError } from "./paypal-checkout";
 import { orderUpdate } from "../../../src/lib/admin-orders";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { checkoutEmail } from "../../../src/lib/checkout-contact";
@@ -44,6 +44,17 @@ function body(event: APIGatewayProxyEventV2, max = 8192) {
 }
 export async function handler(event: APIGatewayProxyEventV2) {
   const path = event.rawPath, method = event.requestContext.http.method;
+  if (path === "/blogs" && method === "GET" || path.startsWith("/blogs/") && method === "GET") {
+    try {
+      const result = await db.send(new ScanCommand({ TableName: process.env.BLOG_TABLE }));
+      const posts = (result.Items ?? []).map(item => Object.fromEntries(Object.entries(item).map(([key, value]) => [key, decode(value)]))) as Record<string, unknown>[];
+      const published = posts.filter(post => post.published === true).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      if (path === "/blogs") return { ...json({ blogs: published.map(({ content, ...post }) => ({ ...post, excerpt: String(content ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 180) })) }), headers: { "content-type": "application/json", "cache-control": "public, max-age=60" } };
+      const slug = decodeURIComponent(path.slice("/blogs/".length));
+      const post = published.find(item => item.slug === slug);
+      return post ? { ...json({ blog: post }), headers: { "content-type": "application/json", "cache-control": "public, max-age=60" } } : json({ error: "Blog not found." }, 404);
+    } catch { return json({ error: "Blogs are temporarily unavailable." }, 503); }
+  }
   if (path === "/checkout/email" && method === "POST") {
     let email: string;
     try { email = checkoutEmail(body(event, 2048).email); }
@@ -295,12 +306,32 @@ export async function handler(event: APIGatewayProxyEventV2) {
         return await confirmPayment(payment);
       }
       return json(receipt, 201);
-    } catch (error) { return json({ error: error instanceof OrderError ? error.message : "Could not place your order. Please retry." }, error instanceof OrderError ? error.status : 503); }
+    } catch (error) { return json({ error: error instanceof OrderError ? error.message : "Could not place your order. Please retry.", ...(error instanceof PayPalRequestError ? { paypalIssue: error.issue, paypalDebugId: error.debugId } : {}) }, error instanceof OrderError ? error.status : 503); }
   }
-  if (!((path === "/admin/orders" && method === "GET") || (/^\/admin\/orders\/[a-zA-Z0-9_-]{1,200}$/.test(path) && method === "PUT") || (path === "/admin/paypal" && (method === "GET" || method === "PUT")) || (path === "/import-image" && method === "POST"))) return json({ error: "Not found." }, 404);
+  if (!((path === "/admin/orders" && method === "GET") || (/^\/admin\/orders\/[a-zA-Z0-9_-]{1,200}$/.test(path) && method === "PUT") || (path === "/admin/paypal" && (method === "GET" || method === "PUT")) || (path === "/admin/blogs" && method === "GET") || (/^\/admin\/blogs\/[a-zA-Z0-9_-]{1,200}$/.test(path) && ["PUT", "DELETE"].includes(method)) || (path === "/import-image" && method === "POST"))) return json({ error: "Not found." }, 404);
   const token = event.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
   if (!token) return json({ error: "Admin sign-in required." }, 401);
   try { await verifier.verify(token); } catch { return json({ error: "Admin sign-in required." }, 403); }
+  if (path === "/admin/blogs" || path.startsWith("/admin/blogs/")) {
+    try {
+      if (method === "GET") {
+        const result = await db.send(new ScanCommand({ TableName: process.env.BLOG_TABLE }));
+        const blogs = (result.Items ?? []).map(item => Object.fromEntries(Object.entries(item).map(([key, value]) => [key, decode(value)]))).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+        return json({ blogs });
+      }
+      const id = path.split("/").pop()!;
+      if (method === "DELETE") { await db.send(new DeleteItemCommand({ TableName: process.env.BLOG_TABLE, Key: { id: { S: id } } })); return json({ ok: true }); }
+      const input = body(event, 350_000);
+      if (typeof input.title !== "string" || !input.title.trim() || input.title.length > 180 || typeof input.content !== "string" || input.content.length > 300_000 || typeof input.published !== "boolean") return json({ error: "Enter a title and valid blog content." }, 400);
+      const baseSlug = input.title.trim().toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90) || "blog";
+      const slug = baseSlug + "-" + id.slice(0, 6);
+      const content = input.content.replace(/<(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\/\1>/gi, "").replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "").replace(/(href|src)\s*=\s*(["'])\s*javascript:[\s\S]*?\2/gi, '$1="#"').replace(/<(?!\/?(?:p|br|strong|b|em|i|u|s|h2|h3|h4|ul|ol|li|blockquote|a|img|div|span)\b)[^>]*>/gi, "");
+      const previous = method === "PUT" ? await record(process.env.BLOG_TABLE, id) : null;
+      const post = { id, title: input.title.trim(), slug, content, layout: input.layout === "image-left" || input.layout === "image-right" ? input.layout : "stacked", published: input.published, createdAt: String(previous?.createdAt ?? new Date().toISOString()), updatedAt: new Date().toISOString() };
+      await db.send(new PutItemCommand({ TableName: process.env.BLOG_TABLE, Item: Object.fromEntries(Object.entries(post).map(([key, value]) => [key, typeof value === "boolean" ? { BOOL: value } : { S: value as string }])) }));
+      return json({ blog: post });
+    } catch { return json({ error: "Could not load or save blogs." }, 503); }
+  }
   if (path === "/admin/orders" || path.startsWith("/admin/orders/")) {
     const adminOrder = (item: Record<string, AttributeValue>) => {
       const decoded = Object.fromEntries(Object.entries(item).map(([key,value]) => [key, decode(value)]));

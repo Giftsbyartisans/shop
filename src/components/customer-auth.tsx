@@ -125,7 +125,7 @@ export default function CustomerAuth({ initialMode }: { initialMode: "login" | "
     <section className={styles.card} aria-labelledby="account-title">
       <h1 id="account-title">{checking ? "Your account" : titles[mode]}</h1>
       {checking ? <p role="status">Checking your session…</p> : <>
-        <p className={styles.intro}>{mode === "account" ? `Signed in as ${accountEmail}` : mode === "signup" ? "A little more personal. Create a customer account with your email." : mode === "login" ? "Log in to your customer account, or continue shopping as a guest." : "Follow the steps below to access your account."}</p>
+        {mode !== "login" && <p className={styles.intro}>{mode === "account" ? `Signed in as ${accountEmail}` : mode === "signup" ? "A little more personal. Create a customer account with your email." : "Follow the steps below to access your account."}</p>}
         {message && <p className={styles.message} role="status">{message}</p>}
         {error && <p className={`${styles.message} ${styles.error}`} role="alert">{error}</p>}
         {mode === "account" ? <div className={styles.actions}><Link href="/collection" className={styles.guest}>Continue shopping</Link><button disabled={busy} onClick={logout}>{busy ? "Signing out…" : "Sign out"}</button></div> : <>
